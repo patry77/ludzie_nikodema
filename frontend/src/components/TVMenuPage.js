@@ -7,14 +7,14 @@ import {
 } from '@mui/material';
 import {
   Person as PersonIcon,
-  Description as DescriptionIcon,
 } from '@mui/icons-material';
+import { DEFAULT_MENU_MESSAGE, categoryLabels, Countdown } from './menuShared';
 
 const API_URL = process.env.REACT_APP_API_URL || '/api';
 
 const TVMenuPage = () => {
   const [menuItems, setMenuItems] = useState([]);
-  const [menuMessage, setMenuMessage] = useState('Zobacz co przygotowaliśmy na sylwestra!');
+  const [menuMessage, setMenuMessage] = useState(DEFAULT_MENU_MESSAGE);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -61,13 +61,6 @@ const TVMenuPage = () => {
     return categories;
   };
 
-  const categoryLabels = {
-    dania: '🍽️ Dania',
-    przekąski: '🍿 Przekąski',
-    napoje: '🥤 Napoje',
-    alkohole: '🍷 Alkohole'
-  };
-
   const groupedItems = groupItemsByCategory(menuItems);
   const totalItems = menuItems.length;
 
@@ -101,10 +94,10 @@ const TVMenuPage = () => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+          background: 'transparent',
         }}
       >
-        <Typography variant="h2" className="text-yellow-400">
+        <Typography variant="h2" sx={{ color: 'var(--gold)' }}>
           Ładowanie menu...
         </Typography>
       </Box>
@@ -117,7 +110,9 @@ const TVMenuPage = () => {
         width: '100vw',
         height: '100vh',
         overflow: 'hidden',
-        background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+        background: 'transparent',
+        position: 'relative',
+        zIndex: 20,
         padding: '2vh',
         boxSizing: 'border-box',
       }}
@@ -128,33 +123,33 @@ const TVMenuPage = () => {
           textAlign: 'center',
           marginBottom: '1.5vh',
           padding: '1.5vh',
-          background: 'rgba(255, 215, 0, 0.1)',
-          border: '4px solid #FFD700',
-          borderRadius: '20px',
+          background: 'rgba(255, 255, 255, 0.07)',
+          border: '1px solid rgba(244, 201, 93, 0.4)',
+          borderRadius: '24px',
+          backdropFilter: 'blur(12px)',
         }}
       >
         <Typography
           variant="h1"
+          className="gold-text"
           sx={{
-            fontSize: 'clamp(2.5rem, 6vw, 5rem)',
-            fontWeight: 'bold',
-            color: '#FFD700',
-            textShadow: '3px 3px 6px rgba(0,0,0,0.7)',
+            fontSize: 'clamp(2.5rem, 5.5vw, 4.6rem)',
             marginBottom: '0.5vh',
           }}
         >
-          🎉 Menu Sylwestrowe 2025 🎊
+          🎄 Menu Wigilijne 2026 🎄
         </Typography>
         <Typography
           variant="h4"
           sx={{
             fontSize: 'clamp(1.2rem, 3vw, 2rem)',
-            color: '#FFFFFF',
-            fontWeight: 'semibold',
+            color: 'var(--ink-dim)',
+            marginBottom: '1vh',
           }}
         >
           {menuMessage}
         </Typography>
+        <Countdown compact />
       </Box>
 
       {/* Menu Items - All categories in one view without scrolling */}
@@ -186,9 +181,9 @@ const TVMenuPage = () => {
                 height: '100%',
                 display: 'flex',
                 flexDirection: 'column',
-                background: 'rgba(26, 26, 46, 0.9)',
-                border: '3px solid #FFD700',
-                borderRadius: '15px',
+                background: 'rgba(10, 28, 20, 0.82)',
+                border: '1px solid rgba(244, 201, 93, 0.45)',
+                borderRadius: '20px',
                 overflow: 'hidden',
                 boxShadow: '0 8px 16px rgba(0,0,0,0.5)',
                 position: 'relative',
@@ -200,8 +195,8 @@ const TVMenuPage = () => {
                   position: 'absolute',
                   top: '1vh',
                   right: '1vh',
-                  background: 'rgba(255, 215, 0, 0.9)',
-                  color: '#1a1a2e',
+                  background: 'rgba(244, 201, 93, 0.95)',
+                  color: '#1a1205',
                   padding: '0.5vh 1vw',
                   borderRadius: '10px',
                   fontSize: 'clamp(0.8rem, 1.5vw, 1.2rem)',
@@ -241,7 +236,7 @@ const TVMenuPage = () => {
                   display: 'flex',
                   flexDirection: 'column',
                   padding: '1.5vh !important',
-                  backgroundColor: 'rgba(26, 26, 46, 0.95)',
+                  backgroundColor: 'transparent',
                   justifyContent: 'center',
                   overflow: 'hidden',
                 }}
@@ -251,7 +246,8 @@ const TVMenuPage = () => {
                   sx={{
                     fontSize: 'clamp(1rem, 2.2vw, 1.8rem)',
                     fontWeight: 'bold',
-                    color: '#FFD700',
+                    color: 'var(--gold)',
+                    fontFamily: 'var(--font-display)',
                     marginBottom: '0.8vh',
                     textAlign: 'center',
                     lineHeight: 1.2,

@@ -1,16 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import {
-  Container,
-  Paper,
-  Typography,
-  Box,
-  Card,
-  CardContent,
-  CircularProgress,
-  Alert,
-} from '@mui/material';
-import { EmojiEvents as TrophyIcon } from '@mui/icons-material';
+import { Container, Typography, Box, CircularProgress, Alert } from '@mui/material';
+import confetti from 'canvas-confetti';
 
 const API_URL = process.env.REACT_APP_API_URL || '/api';
 
@@ -19,130 +10,126 @@ const PersonPage = () => {
   const [person, setPerson] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [revealed, setRevealed] = useState(false);
 
   useEffect(() => {
-    fetchPerson();
+    const load = async () => {
+      try {
+        const response = await fetch(`${API_URL}/person/${linkId}`);
+        if (response.ok) {
+          setPerson(await response.json());
+        } else {
+          setError('Nie znaleziono osoby o podanym linku');
+        }
+      } catch (e) {
+        setError('Błąd podczas ładowania danych');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
   }, [linkId]);
 
-  const fetchPerson = async () => {
-    try {
-      const response = await fetch(`${API_URL}/person/${linkId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setPerson(data);
-      } else {
-        setError('Nie znaleziono osoby o podanym linku');
-      }
-    } catch (error) {
-      setError('Błąd podczas ładowania danych');
-    } finally {
-      setLoading(false);
-    }
+  const reveal = () => {
+    setRevealed(true);
+    confetti({
+      particleCount: 120,
+      spread: 80,
+      origin: { y: 0.6 },
+      colors: ['#f4c95d', '#e0334f', '#2f9266', '#ffffff'],
+    });
   };
 
+  const shell = (children) => (
+    <Container maxWidth="sm" sx={{ py: { xs: 5, md: 8 }, position: 'relative', zIndex: 20 }}>
+      {children}
+    </Container>
+  );
+
   if (loading) {
-    return (
-      <Container maxWidth="md" className="py-8 relative z-20">
-        <Box className="flex justify-center items-center min-h-screen">
-          <CircularProgress size={60} className="text-red-500" />
-        </Box>
-      </Container>
+    return shell(
+      <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
+        <CircularProgress size={56} sx={{ color: 'var(--gold)' }} />
+      </Box>
     );
   }
 
   if (error || !person) {
-    return (
-      <Container maxWidth="md" className="py-8 relative z-20">
-        <Paper
-          elevation={10}
-          className="p-8 bg-gradient-to-br from-red-50 to-green-50 border-4 border-red-300 rounded-3xl shadow-2xl"
-        >
-          <Alert severity="error" className="text-center">
-            {error || 'Nie znaleziono osoby'}
-          </Alert>
-        </Paper>
-      </Container>
-    );
+    return shell(<Alert severity="error">{error || 'Nie znaleziono osoby'}</Alert>);
   }
 
-  return (
-    <Container maxWidth="md" className="py-8 relative z-20">
-      <Paper
-        elevation={10}
-        className="p-8 bg-gradient-to-br from-red-50 to-green-50 border-4 border-red-300 rounded-3xl shadow-2xl min-h-[400px] flex items-center justify-center"
-        style={{
-          background: 'linear-gradient(135deg, #fff5f5 0%, #f0fff4 100%)',
-          border: '4px solid #C8102E',
-        }}
-      >
-        <Box className="text-center w-full">
-          <Typography
-            variant="h3"
-            className="mb-6 font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-green-600 animate-pulse"
-            style={{
-              fontFamily: "'Comic Sans MS', cursive",
-              textShadow: '2px 2px 4px rgba(0,0,0,0.1)',
-            }}
-          >
-            🎄 Cześć {person.name}! 🎅
-          </Typography>
+  return shell(
+    <Box className="glass rise-in" sx={{ textAlign: 'center', p: { xs: 3, md: 6 } }}>
+      <Typography sx={{ letterSpacing: 4, textTransform: 'uppercase', fontSize: '0.8rem', color: 'var(--gold)', mb: 1.5 }}>
+        Mikołajki · Wigilia 2026
+      </Typography>
+      <Typography variant="h3" className="gold-text" sx={{ fontSize: { xs: '2rem', md: '2.8rem' }, mb: 4 }}>
+        Cześć {person.name}! 🎅
+      </Typography>
 
-          {person.assignedTo ? (
-            <Card className="bg-gradient-to-br from-red-100 to-green-100 border-4 border-green-500 rounded-2xl shadow-xl p-8 transform hover:scale-105 transition-transform">
-              <CardContent>
-                <Box className="mb-6">
-                  <TrophyIcon className="text-6xl text-yellow-500 mb-4 animate-bounce" />
-                </Box>
-                <Typography
-                  variant="h4"
-                  className="mb-4 font-bold text-green-700"
-                  style={{ fontFamily: "'Comic Sans MS', cursive" }}
-                >
-                  🎁 Twoja wylosowana osoba to:
+      {person.assignedTo ? (
+        !revealed ? (
+          <Box>
+            <Typography sx={{ color: 'var(--ink-dim)', mb: 3 }}>
+              Twoja wylosowana osoba czeka zapakowana pod choinką. Upewnij się, że nikt nie patrzy! 👀
+            </Typography>
+            <Box
+              component="button"
+              type="button"
+              onClick={reveal}
+              className="glow-pulse"
+              sx={{
+                cursor: 'pointer',
+                border: '2px solid #f4c95d',
+                borderRadius: 999,
+                px: 5,
+                py: 1.75,
+                font: 'inherit',
+                fontWeight: 700,
+                fontSize: '1.1rem',
+                color: '#fff6e5',
+                background: 'linear-gradient(120deg, #7d0c20, #b3122f)',
+                '&:hover': { filter: 'brightness(1.12)' },
+              }}
+            >
+              🎁 Rozpakuj losowanie
+            </Box>
+          </Box>
+        ) : (
+          <Box className="rise-in">
+            <Typography sx={{ color: 'var(--ink-dim)', mb: 1 }}>Obdarowujesz:</Typography>
+            <Typography
+              variant="h2"
+              className="gold-text"
+              sx={{ fontSize: { xs: '2.6rem', md: '3.6rem' }, lineHeight: 1.1, mb: 4, wordBreak: 'break-word' }}
+            >
+              {person.assignedTo.name}
+            </Typography>
+
+            {person.assignedTo.wants ? (
+              <Box sx={{ textAlign: 'left', p: 3, borderRadius: '18px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(244,201,93,0.35)' }}>
+                <Typography sx={{ color: 'var(--gold)', fontWeight: 700, mb: 1 }}>💝 Ta osoba marzy o:</Typography>
+                <Typography sx={{ color: 'var(--ink)', fontStyle: 'italic', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+                  {person.assignedTo.wants}
                 </Typography>
-                <Typography
-                  variant="h2"
-                  className="font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-green-600 mb-6 animate-pulse"
-                  style={{
-                    fontFamily: "'Comic Sans MS', cursive",
-                    fontSize: '3rem',
-                    textShadow: '2px 2px 4px rgba(0,0,0,0.1)',
-                  }}
-                >
-                  {person.assignedTo.name}
-                </Typography>
-                {person.assignedTo.wants && (
-                  <Card className="bg-white bg-opacity-80 border-2 border-yellow-400 rounded-xl p-4 mb-4">
-                    <Typography variant="h6" className="font-semibold text-yellow-700 mb-2">
-                      💝 Co ta osoba chciałaby otrzymać:
-                    </Typography>
-                    <Typography variant="body1" className="text-gray-700 italic">
-                      {person.assignedTo.wants}
-                    </Typography>
-                  </Card>
-                )}
-                <Typography variant="h6" className="text-gray-600 mt-4">
-                  🎉 I pamiętaj o jedzonku! 🎉
-                </Typography>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card className="bg-white border-2 border-yellow-400 rounded-2xl shadow-lg p-8">
-              <CardContent>
-                <Typography variant="h5" className="mb-4 text-yellow-600 font-semibold">
-                  ⏳ Losowanie jeszcze się nie odbyło
-                </Typography>
-                <Typography variant="body1" className="text-gray-600">
-                  Poczekaj na losowanie, a następnie odśwież tę stronę.
-                </Typography>
-              </CardContent>
-            </Card>
-          )}
+              </Box>
+            ) : (
+              <Typography sx={{ color: 'var(--ink-dim)' }}>Ta osoba nie podała jeszcze, co chciałaby dostać – zaskocz ją! 🎁</Typography>
+            )}
+
+            <Typography sx={{ color: 'var(--ink-dim)', mt: 4 }}>🤫 To tajemnica – nikomu nie mów!</Typography>
+          </Box>
+        )
+      ) : (
+        <Box sx={{ p: 3, borderRadius: '18px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(244,201,93,0.35)' }}>
+          <Typography variant="h5" sx={{ color: 'var(--gold)', mb: 1 }}>
+            ⏳ Losowanie jeszcze się nie odbyło
+          </Typography>
+          <Typography sx={{ color: 'var(--ink-dim)' }}>Poczekaj na losowanie, a następnie odśwież tę stronę.</Typography>
         </Box>
-      </Paper>
-    </Container>
+      )}
+    </Box>
   );
 };
 
 export default PersonPage;
-

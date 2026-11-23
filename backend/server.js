@@ -43,7 +43,7 @@ async function readMenuData() {
     const data = await fs.readFile(MENU_FILE, 'utf8');
     return JSON.parse(data);
   } catch (error) {
-    return { items: [], message: 'Zobacz co przygotowaliśmy na sylwestra!' };
+    return { items: [], message: 'Zobacz, co przygotowaliśmy na wigilijny stół!' };
   }
 }
 
@@ -385,6 +385,67 @@ app.post('/api/people', async (req, res) => {
   }
 });
 
+// Public sign-up form (/mikolajki): name, optional email and wish list.
+// Deliberately has NO excludeEmail field and never returns linkId/email - the admin manages exclusions.
+const joinAttempts = new Map(); // ip -> [timestamps]
+const JOIN_WINDOW_MS = 10 * 60 * 1000;
+const JOIN_MAX_PER_WINDOW = 10;
+
+app.post('/api/mikolajki/join', async (req, res) => {
+  try {
+    const now = Date.now();
+    const ip = req.ip || 'unknown';
+    const recent = (joinAttempts.get(ip) || []).filter(t => now - t < JOIN_WINDOW_MS);
+    if (recent.length >= JOIN_MAX_PER_WINDOW) {
+      return res.status(429).json({ error: 'Zbyt wiele prób. Spróbuj ponownie za kilka minut.' });
+    }
+    recent.push(now);
+    joinAttempts.set(ip, recent);
+
+    const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+    const email = typeof req.body.email === 'string' ? req.body.email.trim() : '';
+    const wants = typeof req.body.wants === 'string' ? req.body.wants.trim() : '';
+
+    if (!name) {
+      return res.status(400).json({ error: 'Podaj swoje imię.' });
+    }
+    if (name.length > 60) {
+      return res.status(400).json({ error: 'Imię jest za długie (max 60 znaków).' });
+    }
+    if (wants.length > 500) {
+      return res.status(400).json({ error: 'Opis prezentu jest za długi (max 500 znaków).' });
+    }
+    if (email && !isValidEmail(email)) {
+      return res.status(400).json({ error: 'Niepoprawny format adresu email.' });
+    }
+
+    const data = await readData();
+
+    if (data.people.some(p => p.assignedTo)) {
+      return res.status(409).json({ error: 'Losowanie już się odbyło – zgłoś się do organizatora.' });
+    }
+    if (data.people.some(p => p.name.trim().toLowerCase() === name.toLowerCase())) {
+      return res.status(400).json({ error: 'Osoba o takim imieniu jest już na liście.' });
+    }
+
+    const newPerson = {
+      id: uuidv4(),
+      name,
+      wants,
+      email,
+      excludeEmail: '',
+      linkId: uuidv4(),
+      assignedTo: null
+    };
+    data.people.push(newPerson);
+    await writeData(data);
+    res.json({ success: true, name: newPerson.name });
+  } catch (error) {
+    console.error('Error in public join:', error);
+    res.status(500).json({ error: 'Błąd serwera. Spróbuj ponownie.' });
+  }
+});
+
 // Update person wants
 app.put('/api/people/:id/wants', async (req, res) => {
   try {
@@ -520,7 +581,7 @@ app.get('/api/menu', async (req, res) => {
     const data = await readMenuData();
     res.json({
       items: data.items || [],
-      message: data.message || 'Zobacz co przygotowaliśmy na sylwestra!'
+      message: data.message || 'Zobacz, co przygotowaliśmy na wigilijny stół!'
     });
   } catch (error) {
     console.error('Error reading menu:', error);
@@ -560,7 +621,7 @@ app.post('/api/menu', async (req, res) => {
     items.push(newItem);
     await writeMenuData({ 
       items,
-      message: data.message || 'Zobacz co przygotowaliśmy na sylwestra!'
+      message: data.message || 'Zobacz, co przygotowaliśmy na wigilijny stół!'
     });
     
     res.status(201).json(newItem);
@@ -605,7 +666,7 @@ app.put('/api/menu/:id', async (req, res) => {
 
     await writeMenuData({
       items,
-      message: data.message || 'Zobacz co przygotowaliśmy na sylwestra!'
+      message: data.message || 'Zobacz, co przygotowaliśmy na wigilijny stół!'
     });
 
     res.json(items[itemIndex]);
@@ -622,7 +683,7 @@ app.delete('/api/menu/:id', async (req, res) => {
     const items = (data.items || []).filter(item => item.id !== req.params.id);
     await writeMenuData({ 
       items,
-      message: data.message || 'Zobacz co przygotowaliśmy na sylwestra!'
+      message: data.message || 'Zobacz, co przygotowaliśmy na wigilijny stół!'
     });
     res.json({ success: true });
   } catch (error) {
@@ -643,7 +704,7 @@ app.post('/api/menu/migrate-categories', async (req, res) => {
     });
     await writeMenuData({ 
       items,
-      message: data.message || 'Zobacz co przygotowaliśmy na sylwestra!'
+      message: data.message || 'Zobacz, co przygotowaliśmy na wigilijny stół!'
     });
     res.json({ success: true, updated: items.length });
   } catch (error) {

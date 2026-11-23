@@ -66,7 +66,7 @@ const AdminPage = () => {
   const [drawPreview, setDrawPreview] = useState(null);
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [menuItems, setMenuItems] = useState([]);
-  const [menuMessage, setMenuMessage] = useState('Zobacz co przygotowaliśmy na sylwestra!');
+  const [menuMessage, setMenuMessage] = useState('Zobacz, co przygotowaliśmy na wigilijny stół!');
   const [editingMenuMessage, setEditingMenuMessage] = useState(false);
   const [editingMenuItem, setEditingMenuItem] = useState(null);
   const [editDishName, setEditDishName] = useState('');
@@ -1108,7 +1108,7 @@ const AdminPage = () => {
       {/* Menu Management Section */}
       <Paper className="p-6 mt-8 bg-white shadow-lg border-2 border-green-200">
         <Typography variant="h5" className="mb-4 font-bold text-yellow-400" style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.5)' }}>
-          🎉 Zarządzanie Menu Sylwestrowe 2025 🎊
+          🎄 Zarządzanie Menu Wigilijnym 2026 🎄
         </Typography>
 
         {/* Menu Message Editor */}

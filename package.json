@@ -1,7 +1,7 @@
 {
   "name": "mikolajki-app",
   "version": "1.0.0",
-  "description": "Aplikacja do losowania osób na Mikołajki",
+  "description": "Wigilia 2026: menu wigilijne i losowanie Mikołajków",
   "main": "server.js",
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
