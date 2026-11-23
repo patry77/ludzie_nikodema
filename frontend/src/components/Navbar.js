@@ -60,7 +60,7 @@ const Navbar = () => {
     { to: '/wiki', label: 'Wiki' },
   ];
 
-  const isActive = (to) => (to === '/' ? pathname === '/' || pathname === '/menu' : pathname.startsWith(to));
+  const isActive = (to) => (to === '/' ? pathname === '/' : pathname.startsWith(to));
 
   return (
     <header

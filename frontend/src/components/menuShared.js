@@ -130,9 +130,11 @@ export const MenuHero = ({ message, children }) => {
           background: 'radial-gradient(600px 220px at 50% 0%, rgba(var(--accent-rgb),0.18), transparent 70%)',
         }}
       />
-      <Typography sx={{ letterSpacing: 4, textTransform: 'uppercase', fontSize: '0.8rem', color: 'var(--gold)', mb: 1.5, position: 'relative' }}>
-        {preset.eyebrow}
-      </Typography>
+      {preset.eyebrow && (
+        <Typography sx={{ letterSpacing: 4, textTransform: 'uppercase', fontSize: '0.8rem', color: 'var(--gold)', mb: 1.5, position: 'relative' }}>
+          {preset.eyebrow}
+        </Typography>
+      )}
       <Typography
         variant="h2"
         className="gold-text"

@@ -19,7 +19,7 @@ export const THEMES = {
     particles: 'snow',
     garland: 'bulbs',
     mikolajki: true,
-    eyebrow: '24 grudnia 2026',
+    eyebrow: '',
     menuTitle: 'Menu Wigilijne',
     menuMessage: 'Zobacz, co przygotowaliśmy na wigilijny stół!',
     emptyMenu: 'Wigilijny stół jest jeszcze pusty. Wkrótce pojawią się tu potrawy!',

@@ -31,7 +31,7 @@ import { useSiteTheme } from '../ThemeContext';
 
 const API_URL = '/api';
 
-// /menu: menu wigilijne z mozliwoscia dodawania pozycji przez gosci
+// Strona glowna (/): menu z formularzem dodawania pozycji przez gosci
 const MenuPage = () => {
   const { preset } = useSiteTheme();
   const [menuItems, setMenuItems] = useState([]);

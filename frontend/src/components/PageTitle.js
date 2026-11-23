@@ -10,7 +10,7 @@ const PageTitle = () => {
     const p = location.pathname;
     let title = preset.siteTitle;
 
-    if (p === '/' || p === '/menu') {
+    if (p === '/') {
       title = preset.menuPageTitle;
     } else if (p.startsWith('/person/')) {
       title = `Twoje losowanie - ${preset.adminEyebrow} ${preset.emoji}`;
