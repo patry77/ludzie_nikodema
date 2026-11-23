@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Alert, Box, Button, TextField, Typography } from '@mui/material';
 import { HexBar, Lamps, QuestionPanel, TimerBar, describeNow, playerName } from './QuizBits';
 import { useSecondsLeft } from './quizApi';
+import { SoundControl, useQuizSounds, useSoundSettings } from './useQuizSounds';
 
 const BigButton = ({ children, color = 'gold', ...props }) => (
   <Box
@@ -56,6 +57,10 @@ const GamePlayer = ({ state, offsetRef, act, busy, error, onResetError }) => {
 
   const myResult = c && c.status === 'revealed' && c.result && c.result.playerId === you.id ? c.result.correct : undefined;
 
+  // Dzwiek na telefonie domyslnie wylaczony (na spotkaniu gra TV); wibracja przy Twojej kolei dziala zawsze, gdy telefon ja wspiera
+  const sound = useSoundSettings('player', false);
+  useQuizSounds(state, { role: 'player', enabled: sound.active });
+
   const send = (value) => act('answer', { value });
 
   return (
@@ -75,6 +80,9 @@ const GamePlayer = ({ state, offsetRef, act, busy, error, onResetError }) => {
           <Lamps lives={you.lives} size={18} />
           {state.stage === 3 && <Typography sx={{ color: 'var(--gold)', fontWeight: 800 }}>{you.points} pkt</Typography>}
         </Box>
+      </Box>
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: -1.5 }}>
+        <SoundControl sound={sound} variant="inline" />
       </Box>
 
       {error && <Alert severity="error" onClose={onResetError}>{error}</Alert>}

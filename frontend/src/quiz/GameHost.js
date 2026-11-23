@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Alert, Box, Button, FormControlLabel, MenuItem, Switch, TextField, Typography } from '@mui/material';
 import { PodiumCard, QuestionPanel, TimerBar, describeNow, playerName, stageHint } from './QuizBits';
 import { useSecondsLeft } from './quizApi';
+import { SoundControl, useQuizSounds, useSoundSettings } from './useQuizSounds';
 
 const Panel = ({ title, children, sx }) => (
   <Box className="glass" sx={{ p: { xs: 2, md: 3 }, ...sx }}>
@@ -57,6 +58,9 @@ const GameHost = ({ state, offsetRef, act, busy, error, onResetError }) => {
   const advanceLeft = useSecondsLeft(c && c.status === 'revealed' && c.advanceAt ? c.advanceAt : null, offsetRef);
   const designLeft = useSecondsLeft(state.awaiting ? state.awaiting.deadline : null, offsetRef);
   const [copied, setCopied] = useState(false);
+  // Opcjonalny dzwiek na komputerze prowadzacego (gdy np. ten laptop jest podlaczony do glosnikow)
+  const sound = useSoundSettings('host', false);
+  useQuizSounds(state, { role: 'host', enabled: sound.active, secondsLeft: left !== null ? left : designLeft });
 
   const joinUrl = `${window.location.origin}/teleturniej/gra/${state.code}`;
   const tvUrl = `${window.location.origin}/teleturniej/gra/${state.code}/tv`;
@@ -96,6 +100,7 @@ const GameHost = ({ state, offsetRef, act, busy, error, onResetError }) => {
               <Button variant="outlined" onClick={copy} sx={{ color: 'var(--gold)', borderColor: 'rgba(var(--accent-rgb),0.6)' }}>
                 {copied ? '✔ Skopiowano' : '🔗 Link dla uczestników'}
               </Button>
+              <SoundControl sound={sound} variant="inline" />
               {state.status === 'running' && (
                 <Button variant="outlined" color="error" onClick={() => window.confirm('Zakończyć grę teraz?') && act('end')} disabled={busy}>
                   Zakończ grę

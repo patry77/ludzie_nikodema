@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Alert, Box, Button, Container, FormControl, InputLabel, MenuItem, Select, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Container, FormControl, InputLabel, MenuItem, Select, Slider, TextField, Typography } from '@mui/material';
+import { SOUND_LIST, isAudioUnlocked, playSound, setMasterVolume, unlockAudio } from './sound';
 import GameTv from './GameTv';
 import GameHost from './GameHost';
 import GamePlayer from './GamePlayer';
@@ -228,6 +229,46 @@ const GamesList = ({ reloadKey }) => {
   );
 };
 
+// Odsluch wszystkich efektow dzwiekowych
+const SoundTester = () => {
+  const [volume, setVolume] = useState(0.6);
+  const [ready, setReady] = useState(isAudioUnlocked());
+
+  const play = async (name) => {
+    const ok = await unlockAudio();
+    setReady(ok);
+    setMasterVolume(volume);
+    if (ok) playSound(name);
+  };
+
+  return (
+    <Box className="glass" sx={{ p: { xs: 2, md: 3 }, mt: 3 }}>
+      <Typography sx={{ color: 'var(--gold)', fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', fontSize: '0.8rem', mb: 1 }}>🔊 Test dźwięków</Typography>
+      <Typography variant="body2" sx={{ color: 'var(--ink-dim)', mb: 2, lineHeight: 1.6 }}>
+        Efekty są generowane w przeglądarce (oryginalne, bez plików). Na widoku TV dźwięk włącza się jednym kliknięciem; na telefonie i w panelu prowadzącego jest opcjonalny.
+        Chcesz własne nagrania? Wrzuć plik o nazwie efektu (np. <code>correct.mp3</code>) do folderu <code>frontend/public/sounds/</code> i przebuduj stronę – zastąpi dźwięk wbudowany.
+      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, maxWidth: 360 }}>
+        <Typography sx={{ minWidth: 80 }}>Głośność</Typography>
+        <Slider size="small" value={Math.round(volume * 100)} onChange={(e, v) => { setVolume(v / 100); setMasterVolume(v / 100); }} aria-label="Głośność" sx={{ color: 'var(--gold)' }} />
+      </Box>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1 }}>
+        {SOUND_LIST.map((s) => (
+          <Button key={s.name} onClick={() => play(s.name)} sx={{ justifyContent: 'flex-start', textAlign: 'left', color: 'var(--ink)', background: 'rgba(255,255,255,0.06)', borderRadius: '12px', px: 2, py: 1 }}>
+            <span style={{ marginRight: 10 }}>▶</span>
+            <span>
+              <strong>{s.label}</strong>
+              <br />
+              <small style={{ opacity: 0.7 }}>{s.hint}</small>
+            </span>
+          </Button>
+        ))}
+      </Box>
+      {!ready && <Typography variant="body2" sx={{ color: 'var(--ink-dim)', mt: 1.5 }}>Kliknij dowolny efekt, aby odblokować dźwięk w przeglądarce.</Typography>}
+    </Box>
+  );
+};
+
 export const QuizHubPage = () => {
   const [reloadKey, setReloadKey] = useState(0);
   return (
@@ -241,6 +282,7 @@ export const QuizHubPage = () => {
         <QuizNav current="gry" />
         <FormatCard onCreated={() => setReloadKey((k) => k + 1)} />
         <GamesList reloadKey={reloadKey} />
+        <SoundTester />
       </Container>
     </AdminGate>
   );

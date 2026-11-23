@@ -5,6 +5,7 @@ import confetti from 'canvas-confetti';
 import { LogoMark } from '../components/Logo';
 import { HexBar, PodiumCard, QuestionPanel, TimerBar, describeNow, playerName, stageHint } from './QuizBits';
 import { useSecondsLeft } from './quizApi';
+import { SoundControl, useQuizSounds, useSoundSettings } from './useQuizSounds';
 
 const joinUrl = (code) => `${window.location.origin}/teleturniej/gra/${code}`;
 
@@ -93,6 +94,8 @@ const GameTv = ({ state, offsetRef }) => {
   const showTimer = c && (c.status === 'asking' || c.status === 'answering');
   const left = useSecondsLeft(showTimer ? c.deadline : null, offsetRef);
   const designLeft = useSecondsLeft(state.awaiting ? state.awaiting.deadline : null, offsetRef);
+  const sound = useSoundSettings('tv', true);
+  useQuizSounds(state, { role: 'tv', enabled: sound.active, secondsLeft: left !== null ? left : designLeft });
 
   const answerer = c && c.result && c.result.playerId ? playerName(state, c.result.playerId) : null;
   const resultColor = c && c.result ? (c.result.correct === true ? '#19b857' : c.result.correct === false ? '#d63a3a' : 'var(--ink-dim)') : 'inherit';
@@ -172,6 +175,8 @@ const GameTv = ({ state, offsetRef }) => {
           {state.log[state.log.length - 1].text}
         </Typography>
       )}
+
+      <SoundControl sound={sound} />
     </Box>
   );
 };
