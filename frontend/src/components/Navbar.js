@@ -41,6 +41,13 @@ const Navbar = () => {
           >
             Wiki
           </Button>
+          <Button
+            component={Link}
+            to="/menu"
+            className="text-white hover:bg-gray-700 transition-colors ml-2"
+          >
+            Menu Sylwestrowe
+          </Button>
         </Box>
       </Toolbar>
     </AppBar>

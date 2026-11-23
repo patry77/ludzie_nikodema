@@ -1,352 +1,209 @@
 import React, { useState, useEffect } from 'react';
 import {
   Container,
-  Paper,
   Typography,
-  TextField,
-  Button,
-  List,
-  ListItem,
-  ListItemText,
-  IconButton,
   Box,
   Card,
   CardContent,
-  Alert,
-  Snackbar,
-  Chip,
+  Grid,
+  Paper,
+  Button,
 } from '@mui/material';
 import {
-  Add as AddIcon,
-  Delete as DeleteIcon,
-  Shuffle as ShuffleIcon,
-  ContentCopy as CopyIcon,
-  Refresh as RefreshIcon,
-  EmojiEvents as TrophyIcon,
+  Restaurant as RestaurantIcon,
+  Person as PersonIcon,
+  Description as DescriptionIcon,
 } from '@mui/icons-material';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const API_URL = process.env.REACT_APP_API_URL || '/api';
 
 const DrawPage = () => {
-  const [people, setPeople] = useState([]);
-  const [newName, setNewName] = useState('');
-  const [newWants, setNewWants] = useState('');
-  const [newEmail, setNewEmail] = useState('');
+  const [menuItems, setMenuItems] = useState([]);
+  const [menuMessage, setMenuMessage] = useState('Zobacz co przygotowaliśmy na sylwestra!');
   const [loading, setLoading] = useState(false);
-  const [snackbar, setSnackbar] = useState({ open: false, message: '' });
+  const [selectedCategory, setSelectedCategory] = useState('wszystkie');
 
   useEffect(() => {
-    fetchPeople();
+    fetchMenuItems();
   }, []);
 
-  const fetchPeople = async () => {
+  const fetchMenuItems = async () => {
     try {
-      const response = await fetch(`${API_URL}/people`);
+      setLoading(true);
+      const response = await fetch(`${API_URL}/menu`);
+      if (!response.ok) throw new Error('Błąd podczas pobierania menu');
       const data = await response.json();
-      setPeople(data);
-    } catch (error) {
-      showSnackbar('Błąd podczas ładowania danych');
-    }
-  };
-
-  const addPerson = async () => {
-    if (!newName.trim()) return;
-
-    try {
-      const response = await fetch(`${API_URL}/people`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newName, wants: newWants, email: newEmail }),
-      });
-
-      if (response.ok) {
-        const person = await response.json();
-        setPeople([...people, person]);
-        setNewName('');
-        setNewWants('');
-        setNewEmail('');
-        showSnackbar(`${person.name} został dodany!`);
+      setMenuItems(data.items || []);
+      if (data.message) {
+        setMenuMessage(data.message);
       }
     } catch (error) {
-      showSnackbar('Błąd podczas dodawania osoby');
-    }
-  };
-
-  const deletePerson = async (id) => {
-    try {
-      const response = await fetch(`${API_URL}/people/${id}`, {
-        method: 'DELETE',
-      });
-
-      if (response.ok) {
-        setPeople(people.filter(p => p.id !== id));
-        showSnackbar('Osoba została usunięta');
-      }
-    } catch (error) {
-      showSnackbar('Błąd podczas usuwania osoby');
-    }
-  };
-
-  const drawAssignments = async () => {
-    if (people.length < 2) {
-      showSnackbar('Potrzeba co najmniej 2 osób do losowania!');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await fetch(`${API_URL}/draw`, {
-        method: 'POST',
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        setPeople(result.people);
-        
-        // Check email results
-        if (result.emailResults && result.emailResults.length > 0) {
-          const successCount = result.emailResults.filter(r => r.success).length;
-          const failCount = result.emailResults.length - successCount;
-          if (failCount > 0) {
-            showSnackbar(`Losowanie zakończone! Wysłano ${successCount} emaili, ${failCount} błędów.`);
-          } else {
-            showSnackbar(`Losowanie zakończone! Wysłano ${successCount} emaili! 🎉`);
-          }
-        } else {
-          showSnackbar('Losowanie zakończone! 🎉');
-        }
-      }
-    } catch (error) {
-      showSnackbar('Błąd podczas losowania');
+      console.error('Error fetching menu:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const resetAssignments = async () => {
-    try {
-      const response = await fetch(`${API_URL}/reset`, {
-        method: 'POST',
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        setPeople(result.people);
-        showSnackbar('Przypisania zostały zresetowane');
+  const groupItemsByCategory = (items) => {
+    const categories = {
+      dania: [],
+      przekąski: [],
+      napoje: [],
+      alkohole: []
+    };
+    
+    items.forEach(item => {
+      const cat = item.category || 'dania';
+      if (categories[cat]) {
+        categories[cat].push(item);
+      } else {
+        categories.dania.push(item);
       }
-    } catch (error) {
-      showSnackbar('Błąd podczas resetowania');
+    });
+    
+    return categories;
+  };
+
+  const categoryLabels = {
+    wszystkie: 'Wszystkie',
+    dania: '🍽️ Dania',
+    przekąski: '🍿 Przekąski',
+    napoje: '🥤 Napoje',
+    alkohole: '🍷 Alkohole'
+  };
+
+  const getFilteredItems = () => {
+    if (selectedCategory === 'wszystkie') {
+      return menuItems;
     }
+    return menuItems.filter(item => item.category === selectedCategory);
   };
-
-  const copyLink = (linkId) => {
-    const link = `${window.location.origin}/person/${linkId}`;
-    navigator.clipboard.writeText(link);
-    showSnackbar('Link skopiowany do schowka!');
-  };
-
-  const showSnackbar = (message) => {
-    setSnackbar({ open: true, message });
-  };
-
-  const handleCloseSnackbar = () => {
-    setSnackbar({ ...snackbar, open: false });
-  };
-
-  const hasAssignments = people.some(p => p.assignedTo);
 
   return (
-    <Container maxWidth="md" className="py-8 relative z-20">
-      <Paper
-        elevation={10}
-        className="p-8 bg-gradient-to-br from-red-50 to-green-50 border-4 border-red-300 rounded-3xl shadow-2xl"
+    <Container maxWidth="lg" className="py-8 relative z-20">
+      <Box 
+        className="mb-8 text-center p-8 rounded-lg shadow-lg"
         style={{
-          background: 'linear-gradient(135deg, #fff5f5 0%, #f0fff4 100%)',
-          border: '4px solid #C8102E',
+          background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+          border: '4px solid #FFD700',
         }}
       >
-        <Box className="text-center mb-8">
-          <Typography
-            variant="h2"
-            className="mb-4 font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-green-600"
-            style={{
-              fontFamily: "'Comic Sans MS', cursive",
-              textShadow: '2px 2px 4px rgba(0,0,0,0.1)',
-            }}
-          >
-            🎅 Wigilia boża 🎄
-          </Typography>
-          <Typography variant="h6" className="text-gray-600">
-            Losowanie osób na prezent
-          </Typography>
-        </Box>
+        <Typography variant="h3" className="font-bold text-yellow-400 mb-2" style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.5)' }}>
+          🎉 Menu Sylwestrowe 2025 🎊
+        </Typography>
+        <Typography variant="body1" className="text-white mb-6 font-semibold text-lg">
+          {menuMessage}
+        </Typography>
+      </Box>
 
-        {/* Add Person Section */}
-        <Card className="mb-6 bg-white shadow-lg border-2 border-red-200">
-          <CardContent>
-            <Box className="space-y-3">
-              <TextField
-                fullWidth
-                label="Dodaj osobę"
-                variant="outlined"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && addPerson()}
-                className="bg-white"
-                required
-              />
-              <TextField
-                fullWidth
-                label="Email (opcjonalnie - do wysyłki linku)"
-                variant="outlined"
-                type="email"
-                value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && addPerson()}
-                className="bg-white"
-              />
-              <TextField
-                fullWidth
-                label="Co chciałby/chciałaby otrzymać? (opcjonalnie)"
-                variant="outlined"
-                value={newWants}
-                onChange={(e) => setNewWants(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && addPerson()}
-                className="bg-white"
-                multiline
-                rows={2}
-              />
-              <Button
-                variant="contained"
-                onClick={addPerson}
-                className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-6"
-                startIcon={<AddIcon />}
-                fullWidth
-              >
-                Dodaj
-              </Button>
-            </Box>
-          </CardContent>
-        </Card>
-
-        {/* People List */}
-        <Card className="mb-6 bg-white shadow-lg border-2 border-green-200">
-          <CardContent>
-            <Typography variant="h6" className="mb-4 font-semibold text-green-700">
-              Lista osób ({people.length})
-            </Typography>
-            {people.length === 0 ? (
-              <Typography className="text-gray-500 text-center py-4">
-                Dodaj osoby do losowania
-              </Typography>
-            ) : (
-              <List>
-                {people.map((person) => (
-                  <ListItem
-                    key={person.id}
-                    className="mb-2 bg-gradient-to-r from-red-50 to-green-50 rounded-lg border border-red-200 hover:shadow-md transition-shadow"
-                  >
-                    <ListItemText
-                      primary={
-                        <Box className="flex items-center gap-2">
-                          <span className="font-semibold text-lg">🎁 {person.name}</span>
-                          {person.assignedTo && (
-                            <Chip
-                              label="Wylosowano"
-                              color="success"
-                              size="small"
-                              icon={<TrophyIcon />}
-                            />
-                          )}
-                        </Box>
-                      }
-                      secondary={
-                        <Box className="mt-2">
-                          {person.email && (
-                            <Typography variant="body2" className="text-gray-600 mb-1">
-                              📧 {person.email}
-                            </Typography>
-                          )}
-                          {person.wants && (
-                            <Typography variant="body2" className="text-gray-700 mb-2 italic">
-                              💝 Chce: {person.wants}
-                            </Typography>
-                          )}
-                          <Typography variant="body2" className="text-gray-600">
-                            Link: {window.location.origin}/person/{person.linkId}
-                          </Typography>
-                          <Button
-                            size="small"
-                            startIcon={<CopyIcon />}
-                            onClick={() => copyLink(person.linkId)}
-                            className="mt-1 text-blue-600"
-                          >
-                            Kopiuj link
-                          </Button>
-                        </Box>
-                      }
-                    />
-                    <IconButton
-                      onClick={() => deletePerson(person.id)}
-                      className="text-red-500 hover:bg-red-100"
-                    >
-                      <DeleteIcon />
-                    </IconButton>
-                  </ListItem>
-                ))}
-              </List>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Action Buttons */}
-        <Box className="flex gap-4 justify-center flex-wrap">
-          <Button
-            variant="contained"
-            size="large"
-            onClick={drawAssignments}
-            disabled={loading || people.length < 2}
-            className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-8 py-3 text-lg font-bold shadow-lg transform hover:scale-105 transition-transform"
-            startIcon={<ShuffleIcon />}
-          >
-            {loading ? 'Losowanie...' : '🎲 Losuj osoby!'}
-          </Button>
-
-          {hasAssignments && (
+      {/* Category Filter Buttons */}
+      {menuItems.length > 0 && (
+        <Box className="mb-6 flex gap-2 justify-center flex-wrap">
+          {Object.entries(categoryLabels).map(([key, label]) => (
             <Button
-              variant="outlined"
-              size="large"
-              onClick={resetAssignments}
-              className="border-red-500 text-red-600 hover:bg-red-50 px-8 py-3 text-lg font-bold"
-              startIcon={<RefreshIcon />}
+              key={key}
+              variant={selectedCategory === key ? 'contained' : 'outlined'}
+              onClick={() => setSelectedCategory(key)}
+              className={
+                selectedCategory === key
+                  ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-gray-900 px-6 py-2 font-bold shadow-lg'
+                  : 'border-yellow-400 text-yellow-400 hover:bg-yellow-400 hover:text-gray-900 px-6 py-2'
+              }
             >
-              Resetuj
+              {label}
             </Button>
-          )}
+          ))}
         </Box>
+      )}
 
-        {hasAssignments && (
-          <Alert severity="success" className="mt-6 bg-green-100 border-2 border-green-400">
-            <Typography variant="body1" className="font-semibold">
-              ✅ Losowanie zakończone! Każda osoba może sprawdzić swój link.
-            </Typography>
-          </Alert>
-        )}
-      </Paper>
-
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={3000}
-        onClose={handleCloseSnackbar}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert onClose={handleCloseSnackbar} severity="success" sx={{ width: '100%' }}>
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
+      {loading && menuItems.length === 0 ? (
+        <Box className="text-center py-8">
+          <Typography className="text-white">Ładowanie menu...</Typography>
+        </Box>
+      ) : menuItems.length === 0 ? (
+        <Paper className="p-8 text-center bg-gray-800 bg-opacity-50">
+          <RestaurantIcon className="text-6xl text-gray-400 mb-4" />
+          <Typography variant="h6" className="text-gray-300">
+            Menu jest puste. Dodaj pierwszą pozycję!
+          </Typography>
+        </Paper>
+      ) : (
+        <Box>
+          {Object.entries(groupItemsByCategory(getFilteredItems())).map(([categoryKey, items]) => {
+            if (items.length === 0) return null;
+            
+            return (
+              <Box key={categoryKey} className="mb-8">
+                <Typography variant="h4" className="font-bold text-yellow-400 mb-4" style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.5)' }}>
+                  {categoryLabels[categoryKey] || categoryKey}
+                </Typography>
+                <Grid container spacing={4}>
+                  {items.map((item) => (
+                    <Grid item xs={12} sm={6} md={4} key={item.id}>
+                      <Card className="h-full flex flex-col shadow-lg hover:shadow-xl transition-shadow overflow-hidden bg-gray-800 bg-opacity-70">
+                        {item.image && (
+                          <Box
+                            sx={{
+                              width: '100%',
+                              height: 0,
+                              paddingTop: '56.25%',
+                              position: 'relative',
+                              overflow: 'hidden',
+                              backgroundColor: '#1a1a1a'
+                            }}
+                          >
+                            <img
+                              src={item.image}
+                              alt={item.dishName}
+                              style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'cover',
+                                objectPosition: item.imagePosition || 'center'
+                              }}
+                            />
+                          </Box>
+                        )}
+                        <CardContent className="flex-grow" style={{ backgroundColor: 'rgba(26, 26, 46, 0.8)' }}>
+                          <Typography variant="h5" className="font-bold text-yellow-400 mb-2">
+                            {item.dishName}
+                          </Typography>
+                          
+                          <Box className="flex items-center mb-2 text-gray-300">
+                            <PersonIcon className="mr-2 text-sm" />
+                            <Typography variant="body2">
+                              Przygotował/a: <strong className="text-white">{item.madeBy}</strong>
+                            </Typography>
+                          </Box>
+                          
+                          {item.description && (
+                            <Box className="mt-3">
+                              <Box className="flex items-center mb-1 text-gray-300">
+                                <DescriptionIcon className="mr-2 text-sm" />
+                                <Typography variant="body2" className="font-semibold">
+                                  Opis:
+                                </Typography>
+                              </Box>
+                              <Typography variant="body2" className="text-gray-200">
+                                {item.description}
+                              </Typography>
+                            </Box>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+              </Box>
+            );
+          })}
+        </Box>
+      )}
     </Container>
   );
 };
 
 export default DrawPage;
-

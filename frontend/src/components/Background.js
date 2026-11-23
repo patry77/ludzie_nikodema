@@ -23,7 +23,7 @@ const Background = () => {
           zIndex: -2,
         }}
       />
-      {/* Overlay for better readability */}
+      {/* Overlay for better readability - sylwester theme */}
       <div
         style={{
           position: 'fixed',
@@ -31,7 +31,7 @@ const Background = () => {
           left: 0,
           width: '100%',
           height: '100%',
-          background: 'rgba(0, 0, 0, 0.3)',
+          background: 'linear-gradient(135deg, rgba(26, 26, 46, 0.7) 0%, rgba(22, 33, 62, 0.7) 50%, rgba(15, 52, 96, 0.7) 100%)',
           zIndex: -1,
         }}
       />

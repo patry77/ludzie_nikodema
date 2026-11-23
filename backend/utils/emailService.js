@@ -2,20 +2,55 @@ const nodemailer = require('nodemailer');
 
 // Create transporter from environment variables
 const createTransporter = () => {
-  return nodemailer.createTransport({
+  const port = parseInt(process.env.SMTP_PORT || '587');
+  const config = {
     host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT || '587'),
+    port: port,
     secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
-    auth: {
+  };
+  
+  // For port 25 (standard SMTP), disable TLS completely
+  if (port === 25) {
+    config.secure = false;
+    config.requireTLS = false;
+    config.ignoreTLS = true;
+  }
+  
+  // For localhost connections, disable TLS verification
+  if (config.host === 'localhost' || config.host === '127.0.0.1') {
+    config.tls = {
+      rejectUnauthorized: false
+    };
+  }
+  
+  // Only add auth if user and pass are provided
+  if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+    config.auth = {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
-    },
-  });
+    };
+  }
+  
+  return nodemailer.createTransport(config);
 };
+
+// Escape HTML to prevent XSS
+function escapeHtml(text) {
+  if (!text) return '';
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+  return text.toString().replace(/[&<>"']/g, m => map[m]);
+}
 
 // Email template
 const createEmailTemplate = (person, assignedPerson, baseUrl) => {
   const personLink = `${baseUrl}/person/${person.linkId}`;
+  const safePersonName = escapeHtml(person.name);
   
   return `
 <!DOCTYPE html>
@@ -23,7 +58,7 @@ const createEmailTemplate = (person, assignedPerson, baseUrl) => {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mikołajki 2024</title>
+  <title>Sylwester 2025</title>
   <style>
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -35,8 +70,8 @@ const createEmailTemplate = (person, assignedPerson, baseUrl) => {
       background-color: #f5f5f5;
     }
     .container {
-      background: linear-gradient(135deg, #fff5f5 0%, #f0fff4 100%);
-      border: 4px solid #C8102E;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      border: 4px solid #FFD700;
       border-radius: 20px;
       padding: 30px;
       box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
@@ -46,7 +81,7 @@ const createEmailTemplate = (person, assignedPerson, baseUrl) => {
       margin-bottom: 30px;
     }
     .header h1 {
-      color: #C8102E;
+      color: #FFD700;
       font-size: 28px;
       margin: 0;
       text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
@@ -56,32 +91,11 @@ const createEmailTemplate = (person, assignedPerson, baseUrl) => {
       border-radius: 15px;
       padding: 25px;
       margin: 20px 0;
-      border: 2px solid #0F5132;
-    }
-    .name {
-      font-size: 32px;
-      font-weight: bold;
-      color: #0F5132;
-      text-align: center;
-      margin: 20px 0;
-      padding: 15px;
-      background: linear-gradient(135deg, #f0fff4 0%, #fff5f5 100%);
-      border-radius: 10px;
-    }
-    .wants-box {
-      background: #fff9e6;
       border: 2px solid #FFD700;
-      border-radius: 10px;
-      padding: 15px;
-      margin: 20px 0;
-    }
-    .wants-box h3 {
-      color: #856404;
-      margin-top: 0;
     }
     .button {
       display: inline-block;
-      background: linear-gradient(135deg, #0F5132 0%, #C8102E 100%);
+      background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
       color: white;
       padding: 15px 30px;
       text-decoration: none;
@@ -114,24 +128,13 @@ const createEmailTemplate = (person, assignedPerson, baseUrl) => {
 <body>
   <div class="container">
     <div class="header">
-      <h1>🎅 Mikołajki 2024 🎄</h1>
+      <h1>🎉 Sylwester 2025 🎊</h1>
     </div>
     
     <div class="content">
-      <p>Witaj <strong>${person.name}</strong>!</p>
+      <p>Witaj <strong>${safePersonName}</strong>!</p>
       
-      <p>Losowanie Mikołajek zostało zakończone. Twoja wylosowana osoba to:</p>
-      
-      <div class="name">
-        ${assignedPerson.name}
-      </div>
-      
-      ${assignedPerson.wants ? `
-      <div class="wants-box">
-        <h3>💝 Co ta osoba chciałaby otrzymać:</h3>
-        <p>${assignedPerson.wants}</p>
-      </div>
-      ` : ''}
+      <p>Losowanie na sylwestra zostało zakończone.</p>
       
       <p style="text-align: center; margin-top: 30px;">
         <a href="${personLink}" class="button">Zobacz szczegóły</a>
@@ -141,7 +144,7 @@ const createEmailTemplate = (person, assignedPerson, baseUrl) => {
     </div>
     
     <div class="footer">
-      <p>🎉 Miłych Mikołajek! 🎉</p>
+      <p>🍽️ Nie zapomnij zrobić jakieś fajne jedzonko! 🍽️</p>
       <p>Ludzie Nikodema</p>
     </div>
   </div>
@@ -163,9 +166,11 @@ const sendEmail = async (person, assignedPerson, baseUrl) => {
     const mailOptions = {
       from: `"Ludzie Nikodema" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
       to: person.email,
-      subject: '🎅 Mikołajki 2024 - Twoja wylosowana osoba!',
+      subject: '🎉 Sylwester 2025 - Zobacz szczegóły!',
       html: createEmailTemplate(person, assignedPerson, baseUrl),
-      text: `Witaj ${person.name}!\n\nLosowanie Mikołajek zostało zakończone. Twoja wylosowana osoba to: ${assignedPerson.name}${assignedPerson.wants ? `\n\nCo ta osoba chciałaby otrzymać: ${assignedPerson.wants}` : ''}\n\nZobacz szczegóły: ${baseUrl}/person/${person.linkId}\n\nMiłych Mikołajek!\nLudzie Nikodema`,
+      text: `Witaj ${person.name}!\n\nLosowanie na sylwestra zostało zakończone.\n\nZobacz szczegóły: ${baseUrl}/person/${person.linkId}\n\nNie zapomnij zrobić jakieś fajne jedzonko!\nLudzie Nikodema`,
+      // Add reply-to header
+      replyTo: process.env.SMTP_FROM || process.env.SMTP_USER || undefined,
     };
 
     const info = await transporter.sendMail(mailOptions);
