@@ -104,7 +104,6 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
     if (input.buzzSeconds !== undefined) c.buzzSeconds = num(input.buzzSeconds, 5, 60, c.buzzSeconds);
     if (input.designateSeconds !== undefined) c.designateSeconds = num(input.designateSeconds, 10, 120, c.designateSeconds);
     if (input.autoAdvanceSeconds !== undefined) c.autoAdvanceSeconds = num(input.autoAdvanceSeconds, 0, 60, c.autoAdvanceSeconds);
-    if (input.autoJudgeOpen !== undefined) c.autoJudgeOpen = !!input.autoJudgeOpen;
     if (input.botAccuracy !== undefined) c.botAccuracy = num(input.botAccuracy, 0.05, 0.98, c.botAccuracy);
     if (input.botSpeed !== undefined) c.botSpeed = num(input.botSpeed, 0.05, 3, c.botSpeed || 1);
     return c;
@@ -209,7 +208,7 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
       }
 
       const baseConfig = test
-        ? { ...engine.DEFAULT_CONFIG, autoJudgeOpen: true, autoAdvanceSeconds: 4, answerSeconds: 15 }
+        ? { ...engine.DEFAULT_CONFIG, autoAdvanceSeconds: 4, answerSeconds: 15 }
         : { ...engine.DEFAULT_CONFIG };
       const game = engine.createGame({
         code: newCode(),
@@ -313,6 +312,12 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
           break;
         case 'skip':
           engine.replaceQuestion(g, now);
+          break;
+        case 'pause':
+          engine.pause(g, now);
+          break;
+        case 'resume':
+          engine.resume(g, now);
           break;
         case 'designate': {
           const by = body.byId || (g.awaiting && g.awaiting.byId);

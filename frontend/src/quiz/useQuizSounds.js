@@ -170,7 +170,7 @@ export const SoundControl = ({ sound, variant = 'floating' }) => {
           sx={{
             position: 'fixed',
             left: '50%',
-            bottom: 24,
+            top: 'clamp(70px, 10vh, 120px)',
             transform: 'translateX(-50%)',
             zIndex: 70,
             px: 3,

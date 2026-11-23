@@ -105,18 +105,19 @@ export function useGameState({ code, role, token, as, interval = 1000 }) {
 }
 
 // Sekundy do terminu (aktualizowane 5x na sekunde), z korekta zegara serwera.
-export function useSecondsLeft(deadline, offsetRef) {
+// frozenAt = czas serwera, w ktorym gra zostala wstrzymana (wtedy licznik stoi w miejscu)
+export function useSecondsLeft(deadline, offsetRef, frozenAt) {
   const [left, setLeft] = useState(null);
   useEffect(() => {
     if (!deadline) {
       setLeft(null);
       return undefined;
     }
-    const tick = () => setLeft(Math.max(0, (deadline - (Date.now() + offsetRef.current)) / 1000));
+    const tick = () => setLeft(Math.max(0, (deadline - (frozenAt || Date.now() + offsetRef.current)) / 1000));
     tick();
     const id = setInterval(tick, 200);
     return () => clearInterval(id);
-  }, [deadline, offsetRef]);
+  }, [deadline, offsetRef, frozenAt]);
   return left;
 }
 

@@ -33,7 +33,6 @@ const DEFAULT_CONFIG = {
   answerSeconds: 15,     // czas na odpowiedz
   buzzSeconds: 12,       // czas na zgloszenie sie w finale
   designateSeconds: 30,  // czas na wskazanie gracza (potem losowo)
-  autoJudgeOpen: false,  // automatyczna ocena pytan otwartych
   autoAdvanceSeconds: 0, // automatyczne przejscie dalej po pokazaniu wyniku (0 = recznie)
   botSpeed: 1,           // mnoznik tempa botow (1 = normalnie, 0.2 = bardzo szybko)
   botAccuracy: 0.5,      // skutecznosc botow (tryb testowy) - 0.5 daje partie zblizona do prawdziwego programu
@@ -250,6 +249,7 @@ function startQuestion(game, kind, targetId, role, now) {
 }
 
 function replaceQuestion(game, now) {
+  assertNotPaused(game);
   const c = game.current;
   if (!c || (c.status !== 'asking' && c.status !== 'answering' && c.status !== 'judging')) {
     throw new Error('Pytania nie można teraz pominąć');
@@ -356,7 +356,12 @@ function reveal(game, correct, now) {
 }
 
 // ---------- Akcje graczy i prowadzacego ----------
+function assertNotPaused(game) {
+  if (game.paused) throw new Error('Gra jest wstrzymana przez prowadzącego');
+}
+
 function submitAnswer(game, playerId, value, now) {
+  assertNotPaused(game);
   const c = game.current;
   if (game.status !== 'running' || !c) throw new Error('Brak aktywnego pytania');
   if (c.kind === 'single') {
@@ -379,15 +384,13 @@ function submitAnswer(game, playerId, value, now) {
   if (!voice && !text) throw new Error('Wpisz odpowiedź albo wybierz „Odpowiadam głosem”');
   c.answer = { playerId, value: voice ? null : text, voice, at: now };
   c.suggestion = voice ? null : matchOpen(q, text);
-  if (game.config.autoJudgeOpen && !voice) {
-    reveal(game, c.suggestion === 'correct', now);
-  } else {
-    c.status = 'judging';
-    c.deadline = now + 90 * 1000; // prowadzacy ma 90 s na ocene
-  }
+  // Pytania otwarte ocenia ZAWSZE prowadzacy i nie ma na to limitu czasu (system tylko podpowiada)
+  c.status = 'judging';
+  c.deadline = null;
 }
 
 function buzz(game, playerId, now) {
+  assertNotPaused(game);
   const c = game.current;
   if (game.status !== 'running' || !c || c.kind !== 'buzz' || c.status !== 'asking') throw new Error('Nie można się teraz zgłosić');
   const p = byId(game, playerId);
@@ -413,6 +416,7 @@ function judge(game, correct, now) {
 }
 
 function designate(game, byPlayerId, targetId, now) {
+  assertNotPaused(game);
   const a = game.awaiting;
   if (game.status !== 'running' || !a || a.type !== 'designate' || a.byId !== byPlayerId) {
     throw new Error('Nie możesz teraz wskazać gracza');
@@ -525,6 +529,7 @@ function startStage3(game, now) {
 // Przejscie do nastepnego kroku (nastepne pytanie / wskazywanie / zmiana etapu)
 function advance(game, now) {
   if (game.status !== 'running') return;
+  assertNotPaused(game);
   game.current = game.current && game.current.status === 'revealed' ? null : game.current;
   game.awaiting = null;
   if (game.stage === 1) return advanceStage1(game, now);
@@ -594,9 +599,43 @@ function autoDesignate(game, now) {
   designate(game, a.byId, target, now);
 }
 
+// ---------- Pauza ----------
+function pause(game, now) {
+  if (game.status !== 'running') throw new Error('Pauza jest możliwa tylko w trakcie gry');
+  if (game.paused) return;
+  game.paused = true;
+  game.pausedAt = now;
+  addLog(game, '⏸ Prowadzący wstrzymał grę', 'warn');
+}
+
+function resume(game, now) {
+  if (!game.paused) return;
+  const delta = Math.max(0, now - (game.pausedAt || now));
+  const shift = (obj, key) => {
+    if (obj && typeof obj[key] === 'number') obj[key] += delta;
+  };
+  const c = game.current;
+  if (c) {
+    shift(c, 'deadline');
+    shift(c, 'advanceAt');
+    shift(c, 'startedAt');
+    if (c.botPlan) {
+      shift(c.botPlan, 'answerAt');
+      (c.botPlan.buzz || []).forEach((b) => shift(b, 'at'));
+    }
+  }
+  if (game.awaiting) {
+    shift(game.awaiting, 'deadline');
+    shift(game.awaiting, 'botAt');
+  }
+  game.paused = false;
+  game.pausedAt = null;
+  addLog(game, '▶ Gra wznowiona', 'warn');
+}
+
 // ---------- Zegar gry (timeouty i boty) ----------
 function tick(game, now) {
-  if (game.status !== 'running') return false;
+  if (game.status !== 'running' || game.paused) return false;
   const c = game.current;
   if (c) {
     if (c.status === 'asking') {
@@ -628,11 +667,6 @@ function tick(game, now) {
       }
       if (c.botPlan && c.botPlan.answerAt && now >= c.botPlan.answerAt) {
         submitAnswer(game, c.buzzer.playerId, botAnswerValue(c.q, c.botPlan.correct), now);
-        return true;
-      }
-    } else if (c.status === 'judging') {
-      if (now > c.deadline) {
-        reveal(game, c.suggestion === 'correct', now);
         return true;
       }
     } else if (c.status === 'revealed') {
@@ -716,6 +750,8 @@ function viewFor(game, role, player, now) {
     test: game.test,
     version: game.version,
     status: game.status,
+    paused: !!game.paused,
+    pausedAt: game.paused ? game.pausedAt : null,
     stage: game.stage,
     stageLabel: STAGE_LABELS[game.stage] || '',
     config: game.config,
@@ -754,6 +790,8 @@ module.exports = {
   designate,
   advance,
   replaceQuestion,
+  pause,
+  resume,
   tick,
   viewFor,
   byId,

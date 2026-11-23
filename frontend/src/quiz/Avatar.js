@@ -52,61 +52,62 @@ export async function fileToSquareJpeg(file, size = 256) {
 
 const photoUrl = (code, player) => `${API}/games/${code}/photo/${player.id}?v=${player.photoV}`;
 
-// Awatar gracza: zdjecie (jesli jest) z malym numerem stanowiska albo sam numer na zlotym kole.
-export const Avatar = ({ code, player, size = 40, src }) => {
+// Awatar gracza: zdjecie albo bialy ludek (gdy nie ma zdjecia); opcjonalnie maly numer stanowiska.
+export const Avatar = ({ code, player, size = 40, src, badge: showBadge = true }) => {
   const hasPhoto = !!src || (player && player.hasPhoto && code);
   const url = src || (hasPhoto ? photoUrl(code, player) : null);
+  const out = !!(player && player.eliminated);
   const badge = typeof size === 'number' ? Math.max(16, Math.round(size * 0.38)) : 'clamp(14px, 36%, 40px)';
   return (
-    <Box sx={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
+    <Box sx={{ position: 'relative', width: size, height: size, flexShrink: 0, filter: out ? 'grayscale(1)' : 'none' }}>
       {url ? (
-        <>
-          <Box
-            component="img"
-            src={url}
-            alt={player ? `Zdjęcie: ${player.name}` : 'Zdjęcie'}
-            sx={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--gold)', boxShadow: '0 0 14px rgba(var(--accent-rgb),0.5)', display: 'block' }}
-          />
-          {player && (
-            <Box
-              component="span"
-              sx={{
-                position: 'absolute',
-                right: -4,
-                bottom: -4,
-                width: badge,
-                height: badge,
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 800,
-                fontSize: typeof size === 'number' ? Math.max(10, Math.round(size * 0.24)) : 'clamp(0.6rem, 0.9vw, 1rem)',
-                color: '#1a1205',
-                background: 'linear-gradient(180deg, var(--gold-light), var(--gold-deep))',
-                border: '2px solid #050826',
-              }}
-            >
-              {player.seat}
-            </Box>
-          )}
-        </>
+        <Box
+          component="img"
+          src={url}
+          alt={player ? `Zdjęcie: ${player.name}` : 'Zdjęcie'}
+          sx={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--gold)', boxShadow: '0 0 14px rgba(var(--accent-rgb),0.5)', display: 'block' }}
+        />
       ) : (
         <Box
+          role="img"
+          aria-label={player ? `Brak zdjęcia: ${player.name}` : 'Brak zdjęcia'}
           sx={{
             width: '100%',
             height: '100%',
+            borderRadius: '50%',
+            overflow: 'hidden',
+            border: '2px solid var(--gold)',
+            background: 'radial-gradient(circle at 50% 30%, #2a4be0, #0b1a73 70%, #050f46)',
+            boxShadow: '0 0 14px rgba(var(--accent-rgb),0.35)',
+          }}
+        >
+          <svg viewBox="0 0 64 64" width="100%" height="100%" aria-hidden="true">
+            <circle cx="32" cy="24" r="11" fill="#fff" />
+            <path d="M9 66 C9 46 19 39 32 39 C45 39 55 46 55 66 Z" fill="#fff" />
+          </svg>
+        </Box>
+      )}
+      {player && showBadge && (
+        <Box
+          component="span"
+          sx={{
+            position: 'absolute',
+            right: -4,
+            bottom: -4,
+            width: badge,
+            height: badge,
             borderRadius: '50%',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             fontWeight: 800,
-            fontSize: typeof size === 'number' ? Math.round(size * 0.45) : 'clamp(0.9rem, 1.3vw, 1.6rem)',
+            fontSize: typeof size === 'number' ? Math.max(10, Math.round(size * 0.24)) : 'clamp(0.6rem, 0.9vw, 1rem)',
             color: '#1a1205',
-            background: player && player.eliminated ? '#888' : 'linear-gradient(180deg, var(--gold-light), var(--gold-deep))',
+            background: 'linear-gradient(180deg, var(--gold-light), var(--gold-deep))',
+            border: '2px solid #050826',
           }}
         >
-          {player ? player.seat : '?'}
+          {player.seat}
         </Box>
       )}
     </Box>

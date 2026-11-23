@@ -53,9 +53,9 @@ const GamePlayer = ({ state, offsetRef, act, busy, error, onResetError }) => {
   const iDesignate = !!state.awaiting && state.awaiting.byId === you.id;
 
   const timerOn = c && (c.status === 'asking' || c.status === 'answering');
-  const left = useSecondsLeft(timerOn ? c.deadline : null, offsetRef);
+  const left = useSecondsLeft(timerOn ? c.deadline : null, offsetRef, state.pausedAt);
   const total = c ? (c.kind === 'single' || c.status === 'answering' ? state.config.answerSeconds : state.config.buzzSeconds) : 0;
-  const designLeft = useSecondsLeft(iDesignate ? state.awaiting.deadline : null, offsetRef);
+  const designLeft = useSecondsLeft(iDesignate ? state.awaiting.deadline : null, offsetRef, state.pausedAt);
 
   const myResult = c && c.status === 'revealed' && c.result && c.result.playerId === you.id ? c.result.correct : undefined;
 
@@ -91,6 +91,11 @@ const GamePlayer = ({ state, offsetRef, act, busy, error, onResetError }) => {
       </Box>
 
       {error && <Alert severity="error" onClose={onResetError}>{error}</Alert>}
+      {state.paused && state.status === 'running' && (
+        <Alert severity="warning" icon={false} className="pop-in" sx={{ textAlign: 'center', fontWeight: 800 }}>
+          ⏸ Gra wstrzymana przez prowadzącego – czekaj na wznowienie
+        </Alert>
+      )}
 
       {/* Poczekalnia */}
       {state.status === 'lobby' && (
@@ -150,7 +155,7 @@ const GamePlayer = ({ state, offsetRef, act, busy, error, onResetError }) => {
               {state.awaiting.allowedIds.map((id) => {
                 const p = state.players.find((x) => x.id === id);
                 return (
-                  <HexBar key={id} component="button" type="button" minHeight={60} onClick={() => act('designate', { targetId: id })} disabled={busy}>
+                  <HexBar key={id} component="button" type="button" minHeight={60} onClick={() => act('designate', { targetId: id })} disabled={busy || state.paused}>
                     <Typography sx={{ fontWeight: 700, fontSize: '1.1rem' }}>
                       <Box component="span" sx={{ color: 'var(--primary-light)', mr: 1 }}>{p.seat}.</Box>
                       {p.name}{p.id === you.id && ' (ja)'}
@@ -176,7 +181,7 @@ const GamePlayer = ({ state, offsetRef, act, busy, error, onResetError }) => {
               size="phone"
               onPick={iAmTarget || iAmBuzzer ? (l) => setPicked(l) : undefined}
               pickedLetter={picked}
-              pickDisabled={busy}
+              pickDisabled={busy || state.paused}
               embedMedia
             />
             </Box>
@@ -184,7 +189,7 @@ const GamePlayer = ({ state, offsetRef, act, busy, error, onResetError }) => {
 
           {/* Odpowiedz: ABCD */}
           {canAnswer && c.question.typ === 'abcd' && (
-            <BigButton onClick={() => send(picked)} disabled={!picked || busy}>
+            <BigButton onClick={() => send(picked)} disabled={!picked || busy || state.paused}>
               {picked ? `Zatwierdź: ${picked.toUpperCase()}` : 'Wybierz odpowiedź'}
             </BigButton>
           )}
@@ -203,14 +208,14 @@ const GamePlayer = ({ state, offsetRef, act, busy, error, onResetError }) => {
                   '& .MuiOutlinedInput-root': { color: 'var(--ink)', background: 'rgba(255,255,255,0.08)', borderRadius: '14px', fontSize: '1.2rem', '& fieldset': { borderColor: 'rgba(var(--accent-rgb),0.5)' } },
                 }}
               />
-              <BigButton onClick={() => send(text)} disabled={!text.trim() || busy}>Wyślij odpowiedź</BigButton>
-              <Button onClick={() => send('__voice__')} disabled={busy} sx={{ color: 'var(--ink)' }}>🎤 Odpowiadam głosem (oceni prowadzący)</Button>
+              <BigButton onClick={() => send(text)} disabled={!text.trim() || busy || state.paused}>Wyślij odpowiedź</BigButton>
+              <Button onClick={() => send('__voice__')} disabled={busy || state.paused} sx={{ color: 'var(--ink)' }}>🎤 Odpowiadam głosem (oceni prowadzący)</Button>
             </Box>
           )}
 
           {/* Zgloszenie w finale */}
           {canBuzz && (
-            <BigButton color="red" pulse className="buzz-ring" onClick={() => act('buzz')} disabled={busy}>
+            <BigButton color="red" pulse className="buzz-ring" onClick={() => act('buzz')} disabled={busy || state.paused}>
               ✋ Zgłaszam się!
             </BigButton>
           )}

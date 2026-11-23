@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, Box, Button, FormControlLabel, MenuItem, Switch, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, MenuItem, TextField, Typography } from '@mui/material';
 import { PodiumCard, QuestionPanel, TimerBar, describeNow, playerName, stageHint } from './QuizBits';
 import { useSecondsLeft } from './quizApi';
 import { SoundControl, useQuizSounds, useSoundSettings } from './useQuizSounds';
@@ -26,11 +26,6 @@ const Settings = ({ config, onChange, disabled, showBots }) => (
       onChange={(e) => onChange({ buzzSeconds: Number(e.target.value) })} sx={settingField} inputProps={{ min: 5, max: 60 }} />
     <TextField size="small" type="number" label="Auto „Dalej” po (s, 0 = ręcznie)" value={config.autoAdvanceSeconds} disabled={disabled}
       onChange={(e) => onChange({ autoAdvanceSeconds: Number(e.target.value) })} sx={settingField} inputProps={{ min: 0, max: 60 }} />
-    <FormControlLabel
-      sx={{ color: 'var(--ink)', m: 0 }}
-      control={<Switch checked={!!config.autoJudgeOpen} disabled={disabled} onChange={(e) => onChange({ autoJudgeOpen: e.target.checked })} color="warning" />}
-      label="Auto-ocena pytań otwartych"
-    />
     {showBots && (
       <TextField select size="small" label="Tempo botów" value={config.botSpeed || 1} disabled={disabled} onChange={(e) => onChange({ botSpeed: Number(e.target.value) })} sx={settingField}>
         <MenuItem value={0.15}>bardzo szybko</MenuItem>
@@ -53,10 +48,10 @@ const Settings = ({ config, onChange, disabled, showBots }) => (
 // Panel prowadzacego: pelna kontrola gry + poprawne odpowiedzi (tylko tutaj).
 const GameHost = ({ state, offsetRef, act, busy, error, onResetError }) => {
   const c = state.current;
-  const left = useSecondsLeft(c && (c.status === 'asking' || c.status === 'answering') ? c.deadline : null, offsetRef);
-  const judgeLeft = useSecondsLeft(c && c.status === 'judging' ? c.deadline : null, offsetRef);
-  const advanceLeft = useSecondsLeft(c && c.status === 'revealed' && c.advanceAt ? c.advanceAt : null, offsetRef);
-  const designLeft = useSecondsLeft(state.awaiting ? state.awaiting.deadline : null, offsetRef);
+  const left = useSecondsLeft(c && (c.status === 'asking' || c.status === 'answering') ? c.deadline : null, offsetRef, state.pausedAt);
+  const advanceLeft = useSecondsLeft(c && c.status === 'revealed' && c.advanceAt ? c.advanceAt : null, offsetRef, state.pausedAt);
+  const designLeft = useSecondsLeft(state.awaiting ? state.awaiting.deadline : null, offsetRef, state.pausedAt);
+  const paused = !!state.paused;
   const [copied, setCopied] = useState(false);
   // Opcjonalny dzwiek na komputerze prowadzacego (gdy np. ten laptop jest podlaczony do glosnikow)
   const sound = useSoundSettings('host', false);
@@ -102,12 +97,27 @@ const GameHost = ({ state, offsetRef, act, busy, error, onResetError }) => {
               </Button>
               <SoundControl sound={sound} variant="inline" />
               {state.status === 'running' && (
+                <Button
+                  variant="contained"
+                  onClick={() => act(paused ? 'resume' : 'pause')}
+                  disabled={busy}
+                  sx={{ fontWeight: 800, color: '#1a1205', background: paused ? 'linear-gradient(120deg, #b6ffc9, #19b857)' : 'linear-gradient(120deg, var(--gold-light), var(--gold) 55%, var(--gold-deep))' }}
+                >
+                  {paused ? '▶ Wznów grę' : '⏸ Pauza'}
+                </Button>
+              )}
+              {state.status === 'running' && (
                 <Button variant="outlined" color="error" onClick={() => window.confirm('Zakończyć grę teraz?') && act('end')} disabled={busy}>
                   Zakończ grę
                 </Button>
               )}
             </Box>
           </Box>
+          {paused && state.status === 'running' && (
+            <Alert severity="warning" icon={false} sx={{ mt: 2, fontWeight: 700 }}>
+              ⏸ Gra jest wstrzymana – czasy stoją, uczestnicy nie mogą odpowiadać. Kliknij „Wznów grę”, gdy będziesz gotowy.
+            </Alert>
+          )}
           {error && (
             <Alert severity="error" sx={{ mt: 2 }} onClose={onResetError}>
               {error}
@@ -176,17 +186,17 @@ const GameHost = ({ state, offsetRef, act, busy, error, onResetError }) => {
                     sx={{ outline: c.suggestion === 'wrong' ? '3px solid #fff' : 'none' }}>
                     ✖ Zła odpowiedź
                   </Button>
-                  {judgeLeft !== null && <Typography sx={{ alignSelf: 'center', color: 'var(--ink-dim)' }}>auto za {Math.ceil(judgeLeft)} s</Typography>}
+                  <Typography sx={{ alignSelf: 'center', color: 'var(--ink-dim)', fontSize: '0.85rem' }}>Bez limitu czasu – oceń, kiedy będziesz gotowy</Typography>
                 </>
               )}
               {c && c.status === 'revealed' && (
-                <Button variant="contained" size="large" onClick={() => act('next')} disabled={busy}
+                <Button variant="contained" size="large" onClick={() => act('next')} disabled={busy || paused}
                   sx={{ background: 'linear-gradient(120deg, var(--gold-light), var(--gold) 55%, var(--gold-deep))', color: '#1a1205', fontWeight: 800 }}>
                   Dalej ▶ {advanceLeft !== null && `(${Math.ceil(advanceLeft)})`}
                 </Button>
               )}
               {c && (c.status === 'asking' || c.status === 'answering' || c.status === 'judging') && (
-                <Button variant="outlined" onClick={() => act('skip')} disabled={busy} sx={{ color: 'var(--ink)', borderColor: 'rgba(255,255,255,0.3)' }}>
+                <Button variant="outlined" onClick={() => act('skip')} disabled={busy || paused} sx={{ color: 'var(--ink)', borderColor: 'rgba(255,255,255,0.3)' }}>
                   ⤼ Pomiń pytanie
                 </Button>
               )}
@@ -200,7 +210,7 @@ const GameHost = ({ state, offsetRef, act, busy, error, onResetError }) => {
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                   {state.awaiting.allowedIds.map((id) => (
-                    <Button key={id} variant="outlined" onClick={() => act('designate', { byId: state.awaiting.byId, targetId: id })} disabled={busy}
+                    <Button key={id} variant="outlined" onClick={() => act('designate', { byId: state.awaiting.byId, targetId: id })} disabled={busy || paused}
                       sx={{ color: 'var(--ink)', borderColor: 'rgba(var(--accent-rgb),0.5)' }}>
                       {state.players.find((p) => p.id === id).seat}. {playerName(state, id)}
                     </Button>

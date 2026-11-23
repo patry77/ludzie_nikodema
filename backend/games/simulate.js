@@ -21,7 +21,7 @@ function runOne(index, playersN, accuracy) {
     test: true,
     source: 'sample',
     pool: SAMPLE_QUESTIONS,
-    config: { autoJudgeOpen: true, autoAdvanceSeconds: 1, botAccuracy: accuracy, answerSeconds: 10, buzzSeconds: 8 },
+    config: { autoAdvanceSeconds: 1, botAccuracy: accuracy, answerSeconds: 10, buzzSeconds: 8 },
   });
   for (let i = 1; i <= playersN; i++) engine.addPlayer(game, { name: `Bot ${i}`, isBot: true });
   let now = 1_000_000;
@@ -61,6 +61,8 @@ function runOne(index, playersN, accuracy) {
       }
       if (targets.some((t) => t.id === holder.id)) fail('w etapie II mozna wskazac siebie');
     }
+    // prowadzacy ocenia pytania otwarte (symulacja: zgodnie z podpowiedzia systemu)
+    if (game.current && game.current.status === 'judging') engine.judge(game, game.current.suggestion === 'correct', now);
     engine.tick(game, now);
     // inwarianty na biezaco
     for (const p of game.players) {

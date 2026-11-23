@@ -7,7 +7,8 @@ import FireworksCanvas from '../components/FireworksCanvas';
 import { useSiteTheme } from '../ThemeContext';
 import StageBackdrop from './StageBackdrop';
 import { Avatar } from './Avatar';
-import { HexBar, PodiumCard, QuestionPanel, TimerBar, describeNow, playerName, stageHint } from './QuizBits';
+import { HexBar, QuestionPanel, TimerBar, describeNow, playerName, stageHint } from './QuizBits';
+import TvPodiums from './TvPodiums';
 import { useSecondsLeft } from './quizApi';
 import { SoundControl, useQuizSounds, useSoundSettings } from './useQuizSounds';
 
@@ -164,8 +165,8 @@ const GameTv = ({ state, offsetRef }) => {
   const confettiColors = preset.colors.confetti;
   const c = state.current;
   const showTimer = c && (c.status === 'asking' || c.status === 'answering');
-  const left = useSecondsLeft(showTimer ? c.deadline : null, offsetRef);
-  const designLeft = useSecondsLeft(state.awaiting ? state.awaiting.deadline : null, offsetRef);
+  const left = useSecondsLeft(showTimer ? c.deadline : null, offsetRef, state.pausedAt);
+  const designLeft = useSecondsLeft(state.awaiting ? state.awaiting.deadline : null, offsetRef, state.pausedAt);
   const sound = useSoundSettings('tv', true);
   useQuizSounds(state, { role: 'tv', enabled: sound.active, secondsLeft: left !== null ? left : designLeft });
 
@@ -292,20 +293,37 @@ const GameTv = ({ state, offsetRef }) => {
         </Box>
       )}
 
-      {/* Stanowiska */}
-      {state.status !== 'lobby' && (
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(5, 1fr)' }, gap: 'clamp(8px, 1vw, 18px)', mb: 1.5, position: 'relative' }}>
-          {state.players.map((p) => (
-            <PodiumCard key={p.id} player={p} stage={state.stage} tv code={state.code} />
-          ))}
-        </Box>
-      )}
-
       {/* Przebieg gry */}
       {state.status === 'running' && state.log.length > 0 && (
-        <Typography sx={{ textAlign: 'center', color: 'var(--ink-dim)', fontSize: 'clamp(0.8rem, 1.2vw, 1.4rem)', mb: 2, position: 'relative' }}>
+        <Typography sx={{ textAlign: 'center', color: 'var(--ink-dim)', fontSize: 'clamp(0.8rem, 1.2vw, 1.4rem)', position: 'relative' }}>
           {state.log[state.log.length - 1].text}
         </Typography>
+      )}
+
+      {/* Stanowiska jak w "1 z 10": zdjecie albo bialy ludek u gory, pulpit z punktami na dole */}
+      {state.status !== 'lobby' && <TvPodiums state={state} />}
+
+      {/* Pauza */}
+      {state.paused && state.status === 'running' && (
+        <Box
+          role="status"
+          sx={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 95,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(5,8,38,0.78)',
+            backdropFilter: 'blur(6px)',
+          }}
+        >
+          <Typography className="gold-text neon-title turn-pulse" sx={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(4rem, 14vw, 16rem)', lineHeight: 1 }}>
+            ⏸ PAUZA
+          </Typography>
+          <Typography sx={{ color: 'var(--ink)', fontSize: 'clamp(1.2rem, 2.4vw, 3rem)', mt: 2 }}>Gra wstrzymana przez prowadzącego</Typography>
+        </Box>
       )}
 
       <SoundControl sound={sound} />
