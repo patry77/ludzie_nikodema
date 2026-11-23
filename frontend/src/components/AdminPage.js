@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ThemeSettingsCard from './ThemeSettingsCard';
+import QuizAdminTab from './QuizAdminTab';
 import { useSiteTheme } from '../ThemeContext';
 import { resolveMenuMessage } from './menuShared';
 import {
@@ -36,6 +37,8 @@ import {
   Link,
   Autocomplete,
   InputAdornment,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -79,6 +82,22 @@ const AdminPage = () => {
   const [password, setPassword] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showPasswordDialog, setShowPasswordDialog] = useState(true);
+  // Zakladki panelu: 'ogolne' (osoby, menu, wakacje...) i 'teleturniej' (pytania)
+  const [adminTab, setAdminTab] = useState(() => {
+    try {
+      return sessionStorage.getItem('adminTab') === 'teleturniej' ? 'teleturniej' : 'ogolne';
+    } catch (e) {
+      return 'ogolne';
+    }
+  });
+  const changeAdminTab = (value) => {
+    setAdminTab(value);
+    try {
+      sessionStorage.setItem('adminTab', value);
+    } catch (e) {
+      /* ignorujemy */
+    }
+  };
   const [showPassword, setShowPassword] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState('');
@@ -993,6 +1012,23 @@ const AdminPage = () => {
 
   return (
     <Container maxWidth="md" className="py-8 relative z-20">
+      {/* Zakladki panelu */}
+      <Box sx={{ mb: 3, borderRadius: '999px', background: 'rgba(255, 249, 238, 0.96)', border: '1px solid rgba(var(--accent-rgb), 0.6)', px: 1, boxShadow: '0 8px 24px rgba(0,0,0,0.25)' }}>
+        <Tabs
+          value={adminTab}
+          onChange={(e, value) => changeAdminTab(value)}
+          variant="fullWidth"
+          aria-label="Zakładki panelu administracyjnego"
+          TabIndicatorProps={{ style: { backgroundColor: 'var(--primary)', height: 3, borderRadius: 3 } }}
+        >
+          <Tab value="ogolne" label="⚙️ Ogólne" sx={{ fontWeight: 700 }} />
+          <Tab value="teleturniej" label="🎤 Teleturniej" sx={{ fontWeight: 700 }} />
+        </Tabs>
+      </Box>
+
+      {adminTab === 'teleturniej' && <QuizAdminTab />}
+
+      <Box sx={{ display: adminTab === 'ogolne' ? 'block' : 'none' }}>
       <Paper
         elevation={10}
         className="p-8 rounded-3xl admin-shell"
@@ -1812,6 +1848,7 @@ const AdminPage = () => {
           {snackbar.message}
         </Alert>
       </Snackbar>
+      </Box>
     </Container>
   );
 };

@@ -339,7 +339,7 @@ app.post('/api/questions', async (req, res) => {
     const now = Date.now();
     const ip = req.ip || 'unknown';
     const recent = (questionAttempts.get(ip) || []).filter(t => now - t < 10 * 60 * 1000);
-    if (recent.length >= 30) {
+    if (recent.length >= 60) {
       return res.status(429).json({ error: 'Zbyt wiele pytań w krótkim czasie. Spróbuj ponownie za kilka minut.' });
     }
     recent.push(now);
@@ -423,13 +423,40 @@ app.post('/api/questions', async (req, res) => {
   }
 });
 
-// Export all questions as JSON (admin only)
+// List questions (admin only). By default WITHOUT answers (odp_a..d, poprawna_odpowiedz) - the panel asks for
+// confirmation before it requests them with ?answers=1, so answers are not even sent to the browser earlier.
 app.get('/api/questions', async (req, res) => {
   try {
     if (!isAdminRequest(req)) {
       return res.status(401).json({ error: 'Brak uprawnień' });
     }
-    res.json(await readQuestions());
+    const data = await readQuestions();
+    if (req.query.answers === '1') {
+      return res.json(data);
+    }
+    const questions = data.questions.map((q) => {
+      const { odp_a, odp_b, odp_c, odp_d, poprawna_odpowiedz, ...rest } = q;
+      return rest;
+    });
+    res.json({ questions });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/questions/:id', async (req, res) => {
+  try {
+    if (!isAdminRequest(req)) {
+      return res.status(401).json({ error: 'Brak uprawnień' });
+    }
+    const data = await readQuestions();
+    const before = data.questions.length;
+    data.questions = data.questions.filter((q) => q.id !== req.params.id);
+    if (data.questions.length === before) {
+      return res.status(404).json({ error: 'Nie znaleziono pytania' });
+    }
+    await fs.writeFile(QUESTIONS_FILE, JSON.stringify(data, null, 2));
+    res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
