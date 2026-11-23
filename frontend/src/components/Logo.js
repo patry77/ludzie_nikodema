@@ -61,6 +61,14 @@ const Glyph = ({ type }) => {
           <polygon points="14,46 15,48.6 17.6,49.6 15,50.6 14,53.2 13,50.6 10.4,49.6 13,48.6" style={gold} />
         </g>
       );
+    case 'quiz':
+      return (
+        <g>
+          <text x="32" y="47" textAnchor="middle" fontSize="42" fontWeight="800" fontFamily="'Playfair Display', Georgia, serif" fill="url(#lm-gold)">?</text>
+          <polygon points="50,13 51.4,16.6 55,18 51.4,19.4 50,23 48.6,19.4 45,18 48.6,16.6" style={gold} />
+          <polygon points="14,40 15,42.6 17.6,43.6 15,44.6 14,47.2 13,44.6 10.4,43.6 13,42.6" style={gold} />
+        </g>
+      );
     case 'people':
       return (
         <g>

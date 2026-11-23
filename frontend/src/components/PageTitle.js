@@ -20,6 +20,8 @@ const PageTitle = () => {
       title = `Panel Administracyjny - ${preset.adminEyebrow} 🔐`;
     } else if (p === '/tvmenu') {
       title = `Menu TV - ${preset.adminEyebrow} 📺`;
+    } else if (p === '/teleturniej') {
+      title = 'Teleturniej - dodaj pytanie ❓';
     } else if (p === '/archiwum') {
       title = 'Archiwum menu - Ludzie Nikodema 📦';
     } else if (p === '/wiki') {

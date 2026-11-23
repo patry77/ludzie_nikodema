@@ -48,13 +48,14 @@ const Garland = ({ kind, colors }) => {
 
 const Navbar = () => {
   const { pathname } = useLocation();
-  const { preset } = useSiteTheme();
+  const { preset, sitePreset } = useSiteTheme();
   const [open, setOpen] = React.useState(false);
 
   // Karta "Mikolajki" jest widoczna tylko w motywie swiatecznym
   const links = [
-    { to: '/', label: preset.menuTitle },
-    ...(preset.mikolajki ? [{ to: '/mikolajki', label: 'Mikołajki 🎁' }] : []),
+    { to: '/', label: sitePreset.menuTitle },
+    ...(sitePreset.mikolajki ? [{ to: '/mikolajki', label: 'Mikołajki 🎁' }] : []),
+    { to: '/teleturniej', label: 'Teleturniej 🎤' },
     { to: '/archiwum', label: 'Archiwum' },
     { to: '/wakacje', label: 'Wakacje' },
     { to: '/wiki', label: 'Wiki' },

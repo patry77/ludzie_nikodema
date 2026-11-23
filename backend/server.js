@@ -315,6 +315,126 @@ app.delete('/api/archives/:id', async (req, res) => {
   }
 });
 
+// ---------- Quiz questions (teleturniej) ----------
+// Stored as JSON, e.g.
+//  { "typ": "abcd", "pytanie": "...", "odp_a": "...", "odp_b": "...", "odp_c": "...", "odp_d": "...", "poprawna_odpowiedz": "b" }
+//  optional media: "media": "muzyka" | "wideo", "link": "https://..."
+//  { "typ": "otwarte", "pytanie": "...", "poprawna_odpowiedz": "Warszawa" }
+const QUESTIONS_FILE = path.join(__dirname, 'data', 'questions.json');
+const questionAttempts = new Map(); // ip -> [timestamps]
+
+async function readQuestions() {
+  try {
+    const parsed = JSON.parse(await fs.readFile(QUESTIONS_FILE, 'utf8'));
+    return Array.isArray(parsed.questions) ? parsed : { questions: [] };
+  } catch (error) {
+    return { questions: [] };
+  }
+}
+
+// Adding a question is public (like adding a menu item). Correct answers are never returned to the public:
+// reading questions requires the admin password.
+app.post('/api/questions', async (req, res) => {
+  try {
+    const now = Date.now();
+    const ip = req.ip || 'unknown';
+    const recent = (questionAttempts.get(ip) || []).filter(t => now - t < 10 * 60 * 1000);
+    if (recent.length >= 30) {
+      return res.status(429).json({ error: 'Zbyt wiele pytań w krótkim czasie. Spróbuj ponownie za kilka minut.' });
+    }
+    recent.push(now);
+    questionAttempts.set(ip, recent);
+
+    const body = req.body || {};
+    const str = (v) => (typeof v === 'string' ? v.trim() : '');
+    const typ = body.typ;
+    const pytanie = str(body.pytanie);
+
+    if (typ !== 'abcd' && typ !== 'otwarte') {
+      return res.status(400).json({ error: 'Wybierz format pytania' });
+    }
+    if (!pytanie) {
+      return res.status(400).json({ error: 'Wpisz treść pytania' });
+    }
+    if (pytanie.length > 500) {
+      return res.status(400).json({ error: 'Pytanie może mieć maks. 500 znaków' });
+    }
+
+    const question = { id: uuidv4(), typ, pytanie };
+
+    // Music / video question: any format + a link (e.g. YouTube). Only http(s) links are accepted.
+    const media = body.media === undefined || body.media === null || body.media === '' ? '' : str(body.media);
+    if (media && !['muzyka', 'wideo'].includes(media)) {
+      return res.status(400).json({ error: 'Nieznany rodzaj multimediów (dozwolone: muzyka, wideo)' });
+    }
+    if (media) {
+      const link = str(body.link);
+      let parsed = null;
+      try {
+        parsed = new URL(link);
+      } catch (e) {
+        parsed = null;
+      }
+      if (!link || link.length > 300 || !parsed || !['http:', 'https:'].includes(parsed.protocol)) {
+        return res.status(400).json({ error: 'Podaj poprawny link (zaczynający się od http:// lub https://)' });
+      }
+      question.media = media;
+      question.link = parsed.href;
+    }
+
+    if (typ === 'abcd') {
+      const answers = {};
+      for (const key of ['odp_a', 'odp_b', 'odp_c', 'odp_d']) {
+        const value = str(body[key]);
+        if (!value) {
+          return res.status(400).json({ error: `Uzupełnij odpowiedź ${key.slice(-1).toUpperCase()}` });
+        }
+        if (value.length > 200) {
+          return res.status(400).json({ error: `Odpowiedź ${key.slice(-1).toUpperCase()} może mieć maks. 200 znaków` });
+        }
+        answers[key] = value;
+      }
+      const correct = str(body.poprawna_odpowiedz).toLowerCase();
+      if (!['a', 'b', 'c', 'd'].includes(correct)) {
+        return res.status(400).json({ error: 'Wskaż poprawną odpowiedź (A, B, C lub D)' });
+      }
+      Object.assign(question, answers, { poprawna_odpowiedz: correct });
+    } else {
+      const correct = str(body.poprawna_odpowiedz);
+      if (!correct) {
+        return res.status(400).json({ error: 'Wpisz poprawną odpowiedź' });
+      }
+      if (correct.length > 200) {
+        return res.status(400).json({ error: 'Poprawna odpowiedź może mieć maks. 200 znaków' });
+      }
+      question.poprawna_odpowiedz = correct;
+    }
+
+    question.dodano = new Date().toISOString();
+
+    const data = await readQuestions();
+    data.questions.push(question);
+    await fs.mkdir(path.dirname(QUESTIONS_FILE), { recursive: true });
+    await fs.writeFile(QUESTIONS_FILE, JSON.stringify(data, null, 2));
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error adding question:', error);
+    res.status(500).json({ error: 'Błąd serwera. Spróbuj ponownie.' });
+  }
+});
+
+// Export all questions as JSON (admin only)
+app.get('/api/questions', async (req, res) => {
+  try {
+    if (!isAdminRequest(req)) {
+      return res.status(401).json({ error: 'Brak uprawnień' });
+    }
+    res.json(await readQuestions());
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get all people
 app.get('/api/people', async (req, res) => {
   try {

@@ -168,3 +168,34 @@ export const getCountdown = (settings) => {
   if (settings.showCountdown === false || !date) return null;
   return { date: new Date(date), label: settings.countdownLabel || preset.countdownLabel };
 };
+
+// Motyw podstrony /teleturniej (nie jest wybieralny w panelu admina - dziala tylko na tej podstronie).
+export const QUIZ_THEME = {
+  id: 'teleturniej',
+  label: 'Teleturniej',
+  emoji: '🎤',
+  description: 'Scena teleturnieju',
+  colors: {
+    night: '#050826', night2: '#0a1050',
+    primary: '#d9480f', primaryDark: '#a53509', primaryLight: '#ff8a3d',
+    secondary: '#2563eb', secondaryDark: '#1e3a8a',
+    gold: '#ffd23f', goldLight: '#fff3b0', goldDeep: '#f2a900', accentRgb: '255,210,63',
+    glow1: 'rgba(37,99,235,0.55)', glow2: 'rgba(255,210,63,0.22)', glow3: 'rgba(124,58,237,0.45)',
+    garland: ['#ffd23f', '#ff8a3d', '#60a5fa', '#f472b6'],
+    confetti: ['#ffd23f', '#ff8a3d', '#60a5fa', '#ffffff'],
+  },
+  particles: 'none',
+  garland: 'bulbs',
+  mikolajki: false,
+  eyebrow: '',
+  menuTitle: 'Teleturniej',
+  menuMessage: '',
+  emptyMenu: '',
+  siteTitle: 'Teleturniej ❓',
+  menuPageTitle: 'Teleturniej ❓',
+  adminEyebrow: 'Teleturniej',
+  drawEyebrow: 'Losowanie',
+  countdownDate: '',
+  countdownLabel: '',
+  glyph: 'quiz',
+};

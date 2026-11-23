@@ -12,6 +12,7 @@ import WakacjePage from './components/WakacjePage';
 import EmbedTestPage from './components/EmbedTestPage';
 import MikolajkiPage from './components/MikolajkiPage';
 import ArchivePage from './components/ArchivePage';
+import TeleturniejPage from './components/TeleturniejPage';
 import Navbar from './components/Navbar';
 import Snowflakes from './components/Snowflakes';
 import Background from './components/Background';
@@ -37,6 +38,7 @@ const Shell = () => {
           <Route path="/menu" element={<Navigate to="/" replace />} />
           <Route path="/tvmenu" element={<TVMenuPage />} />
           <Route path="/mikolajki" element={<MikolajkiPage />} />
+          <Route path="/teleturniej" element={<TeleturniejPage />} />
           <Route path="/archiwum" element={<ArchivePage />} />
           <Route path="/wiki" element={<WikiPage />} />
           <Route path="/wakacje" element={<WakacjePage />} />
@@ -47,18 +49,19 @@ const Shell = () => {
   );
 };
 
+// Router jest nad dostawca motywu, bo motyw zalezy od aktualnej trasy (/teleturniej ma wlasny)
 function App() {
   return (
-    <SiteThemeProvider>
-      <CssBaseline />
-      <div className="min-h-screen relative overflow-hidden">
-        <Background />
-        <Snowflakes />
-        <Router>
+    <Router>
+      <SiteThemeProvider>
+        <CssBaseline />
+        <div className="min-h-screen relative overflow-hidden">
+          <Background />
+          <Snowflakes />
           <Shell />
-        </Router>
-      </div>
-    </SiteThemeProvider>
+        </div>
+      </SiteThemeProvider>
+    </Router>
   );
 }
 

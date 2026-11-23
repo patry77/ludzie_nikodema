@@ -249,3 +249,75 @@ code {
   background-color: #f3ead6;
   color: var(--secondary-dark);
 }
+
+/* ---------- Scena teleturnieju (/teleturniej) ---------- */
+@keyframes beam-sway {
+  0%, 100% { transform: rotate(var(--beam-from, -22deg)); }
+  50% { transform: rotate(var(--beam-to, 22deg)); }
+}
+.stage-beam {
+  position: absolute;
+  top: -4vh;
+  width: 46vw;
+  height: 130vh;
+  transform-origin: 50% 0;
+  background: linear-gradient(to bottom, var(--beam-color, rgba(255, 255, 255, 0.30)), transparent 78%);
+  clip-path: polygon(46% 0, 54% 0, 100% 100%, 0 100%);
+  filter: blur(2px);
+  animation: beam-sway 9s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes rays-spin {
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+.stage-rays {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 160vmax;
+  height: 160vmax;
+  transform: translate(-50%, -50%);
+  background: repeating-conic-gradient(from 0deg, rgba(var(--accent-rgb), 0.10) 0deg 6deg, transparent 6deg 18deg);
+  -webkit-mask-image: radial-gradient(circle, #000 0, transparent 60%);
+  mask-image: radial-gradient(circle, #000 0, transparent 60%);
+  animation: rays-spin 120s linear infinite;
+  pointer-events: none;
+}
+
+/* Rzad zarowek wokol szyldu */
+.marquee-lights {
+  height: 22px;
+  background:
+    radial-gradient(circle at 11px 11px, var(--gold-light) 0 3px, var(--gold) 4px 5px, transparent 6px) 0 0 / 22px 22px repeat-x;
+  filter: drop-shadow(0 0 5px var(--gold));
+  animation: twinkle 1.6s ease-in-out infinite;
+}
+.marquee-lights.alt {
+  background:
+    radial-gradient(circle at 11px 11px, #fff 0 3px, var(--primary-light) 4px 5px, transparent 6px) 11px 0 / 22px 22px repeat-x;
+  filter: drop-shadow(0 0 5px var(--primary-light));
+  animation-delay: 0.8s;
+}
+
+/* Szesciokatne paski odpowiedzi jak w teleturnieju */
+.hex-bar {
+  clip-path: polygon(22px 0, calc(100% - 22px) 0, 100% 50%, calc(100% - 22px) 100%, 22px 100%, 0 50%);
+}
+
+@keyframes neon-flicker {
+  0%, 100% { filter: drop-shadow(0 0 10px rgba(var(--accent-rgb), 0.7)) drop-shadow(0 0 28px rgba(var(--accent-rgb), 0.45)); }
+  50% { filter: drop-shadow(0 0 6px rgba(var(--accent-rgb), 0.5)) drop-shadow(0 0 16px rgba(var(--accent-rgb), 0.3)); }
+}
+.neon-title {
+  animation: neon-flicker 3.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-beam,
+  .stage-rays,
+  .marquee-lights,
+  .neon-title {
+    animation: none !important;
+  }
+}

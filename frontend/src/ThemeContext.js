@@ -1,7 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
 import { buildMuiTheme } from './theme';
-import { DEFAULT_SETTINGS, getCountdown, getTheme } from './themes';
+import { DEFAULT_SETTINGS, QUIZ_THEME, getCountdown, getTheme } from './themes';
 
 const API_URL = process.env.REACT_APP_API_URL || '/api';
 const CACHE_KEY = 'siteSettings';
@@ -71,7 +72,10 @@ export const SiteThemeProvider = ({ children }) => {
     refresh();
   }, [refresh]);
 
-  const preset = getTheme(settings.theme);
+  // Podstrona /teleturniej ma wlasny, teleturniejowy motyw niezaleznie od motywu strony
+  const { pathname } = useLocation();
+  const sitePreset = getTheme(settings.theme);
+  const preset = pathname === '/teleturniej' ? QUIZ_THEME : sitePreset;
 
   useEffect(() => {
     applyCssVars(preset);
@@ -83,6 +87,7 @@ export const SiteThemeProvider = ({ children }) => {
     () => ({
       settings,
       preset,
+      sitePreset,
       loaded,
       countdown: getCountdown(settings),
       refresh,
@@ -92,7 +97,7 @@ export const SiteThemeProvider = ({ children }) => {
         writeCache(merged);
       },
     }),
-    [settings, preset, loaded, refresh]
+    [settings, preset, sitePreset, loaded, refresh]
   );
 
   return (
