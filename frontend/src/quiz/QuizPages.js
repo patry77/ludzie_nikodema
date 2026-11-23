@@ -9,6 +9,7 @@ import StageBackdrop from './StageBackdrop';
 import MarqueeSign from './MarqueeSign';
 import { Avatar, PhotoPicker } from './Avatar';
 import { HexBar } from './QuizBits';
+import { IntroPhone } from './IntroCam';
 import FamTv from '../familiada/FamTv';
 import FamHost from '../familiada/FamHost';
 import FamPlayer, { FamJoinForm } from '../familiada/FamPlayer';
@@ -223,7 +224,7 @@ const GamesList = ({ reloadKey }) => {
             <Box key={g.code} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', p: 1.5, borderRadius: '14px', background: 'rgba(255,255,255,0.06)' }}>
               <Typography sx={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.5rem', color: 'var(--gold)', letterSpacing: 3 }}>{g.code}</Typography>
               <Typography sx={{ color: 'var(--ink-dim)', flex: 1, minWidth: 160 }}>
-                {g.format === 'familiada' ? `Familiada · ${statusLabel[g.status]} · ${(g.teams || []).map((t) => t.name).join(' vs ')}` : `1 z 10 · ${statusLabel[g.status]} · ${g.players} graczy`}{g.test ? ' · test' : ''}
+                {g.format === 'familiada' ? `Familiada · ${statusLabel[g.status]} · ${(g.teams || []).join(' vs ')}` : `1 z 10 · ${statusLabel[g.status]} · ${g.players} graczy`}{g.test ? ' · test' : ''}
               </Typography>
               {g.test && <Button size="small" component={Link} to={`/teleturniej/gra/${g.code}/test`} sx={{ color: 'var(--gold)' }}>Konsola testowa</Button>}
               <Button size="small" component={Link} to={`/teleturniej/gra/${g.code}/prowadzacy`} sx={{ color: 'var(--gold)' }}>Prowadzący</Button>
@@ -492,15 +493,26 @@ const PlayerInner = ({ code, stored, onLost }) => {
 
   if (loadError && !state && loadError.status !== 401) return <GameError error={loadError} />;
   if (!state || !state.you) return <Loading />;
+  const introBox = state.intro && state.intro.presenterId === state.you.id ? (
+    <Box sx={{ maxWidth: 520, mx: 'auto', px: 2, pt: 2, position: 'relative', zIndex: 30 }}>
+      <IntroPhone code={code} intro={state.intro} token={stored.token} />
+    </Box>
+  ) : null;
   if (state.format === 'familiada') {
     return (
       <>
         <StageBackdrop variant="soft" />
+        {introBox}
         <FamPlayer state={state} offsetRef={offsetRef} act={act} busy={busy} error={error} onResetError={() => setError('')} />
       </>
     );
   }
-  return <GamePlayer state={state} offsetRef={offsetRef} act={act} busy={busy} error={error} onResetError={() => setError('')} />;
+  return (
+    <>
+      {introBox}
+      <GamePlayer state={state} offsetRef={offsetRef} act={act} busy={busy} error={error} onResetError={() => setError('')} />
+    </>
+  );
 };
 
 // ---------------- Wpisanie kodu ----------------
@@ -627,6 +639,7 @@ const TestInnerOne = ({ code }) => {
             <Box sx={{ maxWidth: 420, mx: 'auto', borderRadius: '36px', border: '8px solid #0b0f1f', background: 'rgba(7,10,31,0.8)', boxShadow: '0 20px 60px rgba(0,0,0,0.5)', overflow: 'hidden', maxHeight: 760, overflowY: 'auto' }}>
               {phone.state && phone.state.you ? (
                 <Box sx={{ ml: { xs: 0 } }}>
+                  {phone.state.intro && phone.state.intro.presenterId === phone.state.you.id && <IntroPhone code={code} intro={phone.state.intro} as={effectiveAs} />}
                   <GamePlayer state={phone.state} offsetRef={phone.offsetRef} act={phoneActions.act} busy={phoneActions.busy} error={phoneActions.error} onResetError={() => phoneActions.setError('')} />
                 </Box>
               ) : (
@@ -696,7 +709,10 @@ const FamTestInner = ({ code }) => {
             </FormControl>
             <Box sx={{ maxWidth: 420, mx: 'auto', borderRadius: '36px', border: '8px solid #0b0f1f', background: 'rgba(7,10,31,0.8)', boxShadow: '0 20px 60px rgba(0,0,0,0.5)', overflow: 'hidden', maxHeight: 760, overflowY: 'auto' }}>
               {phone.state && phone.state.you ? (
+                <>
+                {phone.state.intro && phone.state.intro.presenterId === phone.state.you.id && <IntroPhone code={code} intro={phone.state.intro} as={effectiveAs} />}
                 <FamPlayer state={phone.state} offsetRef={phone.offsetRef} act={phoneActions.act} busy={phoneActions.busy} error={phoneActions.error} onResetError={() => phoneActions.setError('')} />
+                </>
               ) : (
                 <Loading text="Ładowanie telefonu..." />
               )}

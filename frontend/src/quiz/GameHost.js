@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Alert, Box, Button, MenuItem, TextField, Typography } from '@mui/material';
 import { PodiumCard, QuestionPanel, TimerBar, describeNow, playerName, stageHint } from './QuizBits';
 import { useSecondsLeft } from './quizApi';
+import { IntroHost } from './IntroCam';
 import { SoundControl, useQuizSounds, useSoundSettings } from './useQuizSounds';
 
 const Panel = ({ title, children, sx }) => (
@@ -46,6 +47,7 @@ const Settings = ({ config, onChange, disabled, showBots }) => (
 );
 
 // Panel prowadzacego: pelna kontrola gry + poprawne odpowiedzi (tylko tutaj).
+
 const GameHost = ({ state, offsetRef, act, busy, error, onResetError }) => {
   const c = state.current;
   const left = useSecondsLeft(c && (c.status === 'asking' || c.status === 'answering') ? c.deadline : null, offsetRef, state.pausedAt);
@@ -124,6 +126,8 @@ const GameHost = ({ state, offsetRef, act, busy, error, onResetError }) => {
             </Alert>
           )}
         </Panel>
+
+        {state.status === 'lobby' && <IntroHost code={state.code} intro={state.intro} people={state.players} />}
 
         {/* Poczekalnia */}
         {state.status === 'lobby' && (

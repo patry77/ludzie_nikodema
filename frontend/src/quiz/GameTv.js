@@ -10,6 +10,7 @@ import { Avatar } from './Avatar';
 import { HexBar, QuestionPanel, TimerBar, describeNow, playerName, stageHint } from './QuizBits';
 import TvPodiums from './TvPodiums';
 import { useSecondsLeft } from './quizApi';
+import { IntroTv } from './IntroCam';
 import { SoundControl, useQuizSounds, useSoundSettings } from './useQuizSounds';
 
 const joinUrl = (code) => `${window.location.origin}/teleturniej/gra/${code}`;
@@ -257,6 +258,7 @@ const GameTv = ({ state, offsetRef }) => {
 
       {/* Srodek */}
       {state.status === 'lobby' && <Lobby state={state} />}
+      {state.status === 'lobby' && state.intro && <IntroTv code={state.code} intro={state.intro} />}
       {state.status === 'finished' && state.result && <Winner state={state} colors={confettiColors} />}
       {state.status === 'running' && (
         <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 'clamp(10px, 1.6vh, 22px)', maxWidth: 1500, width: '100%', mx: 'auto', position: 'relative' }}>

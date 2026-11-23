@@ -4,6 +4,7 @@ import { Alert, Box, Button, Chip, Collapse, TextField, Typography } from '@mui/
 import { QRCodeSVG } from 'qrcode.react';
 import { Avatar, PhotoPicker } from '../quiz/Avatar';
 import { useSecondsLeft } from '../quiz/quizApi';
+import { IntroHost } from '../quiz/IntroCam';
 import { teamColor } from './FamBits';
 import { FamSoundControl, useFamSounds, useSoundSettings } from './useFamSounds';
 
@@ -127,6 +128,7 @@ const Lobby = ({ state, act, busy }) => (
       </Box>
       <ConfigEditor state={state} act={act} busy={busy} />
     </Panel>
+    <IntroHost code={state.code} intro={state.intro} people={[...state.teams.flatMap((t) => t.members), ...state.unassigned]} />
     <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' } }}>
       {state.teams.map((t) => (
         <TeamEditor key={t.idx} state={state} team={t} act={act} busy={busy} />

@@ -5,6 +5,7 @@ import confetti from 'canvas-confetti';
 import StageBackdrop from '../quiz/StageBackdrop';
 import { Avatar } from '../quiz/Avatar';
 import { useSecondsLeft } from '../quiz/quizApi';
+import { IntroTv } from '../quiz/IntroCam';
 import { FamBoard, FinalBoard, BoardFrame, ScoreDisplay } from './FamBoard';
 import DotDisplay from './DotMatrix';
 import { SeatedMember, teamColor, useFlash } from './FamBits';
@@ -325,6 +326,7 @@ const FamTv = ({ state, offsetRef }) => {
       <StageBackdrop variant="full" />
       <Box sx={{ position: 'relative', zIndex: 5, flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         {state.status === 'lobby' && <Lobby state={state} />}
+        {state.status === 'lobby' && state.intro && <IntroTv code={state.code} intro={state.intro} />}
 
         {inRound && (
           <Box sx={{ flex: 1, display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,2.5fr) minmax(0,1fr)', gap: 'clamp(8px, 1.6vw, 36px)', alignItems: 'end', minHeight: 0 }}>

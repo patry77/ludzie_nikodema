@@ -221,6 +221,99 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
     return null;
   }
 
+  // ---------- Przedstawianie z kamera (WebRTC) ----------
+  // Serwer tylko przekazuje wiadomosci sygnalizacyjne (hello/offer/answer/ice); obraz idzie prosto z telefonu do TV.
+  // Dziala tylko w poczekalni (przed startem gry). Stan trzymany w pamieci - nie trafia do games.json.
+  const intros = new Map(); // kod gry -> { presenterId, rev, status, seq, msgs }
+  const SIGNAL_TYPES = ['hello', 'offer', 'answer', 'ice', 'bye'];
+  const INTRO_STATUSES = ['waiting', 'connecting', 'live', 'failed'];
+
+  const introView = (g) => {
+    const it = intros.get(g.code);
+    if (!it || g.status !== 'lobby') return null;
+    const p = g.players.find((x) => x.id === it.presenterId);
+    if (!p) return null;
+    return { presenterId: p.id, name: p.name, rev: it.rev, status: it.status };
+  };
+
+  app.post('/api/games/:code/intro', (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const g = getGame(req.params.code);
+    if (!g) return fail(res, 404, 'Nie znaleziono gry');
+    const body = req.body || {};
+    if (body.action === 'stop') {
+      intros.delete(g.code);
+      touch(g);
+      return res.json({ success: true });
+    }
+    if (body.action !== 'start') return fail(res, 400, 'Nieznana akcja');
+    if (g.status !== 'lobby') return fail(res, 400, 'Przedstawianie jest możliwe tylko przed startem gry');
+    const p = g.players.find((x) => x.id === body.playerId);
+    if (!p) return fail(res, 404, 'Nie znaleziono osoby');
+    if (p.isBot) return fail(res, 400, 'Bot nie ma kamery');
+    intros.set(g.code, { presenterId: p.id, rev: crypto.randomUUID(), status: 'waiting', seq: 0, msgs: [] });
+    touch(g);
+    res.json({ success: true });
+  });
+
+  function signalAuth(req, res, g, role, body) {
+    const it = intros.get(g.code);
+    if (!it || g.status !== 'lobby') {
+      res.json({ active: false });
+      return null;
+    }
+    if (String(body.rev) !== it.rev) {
+      res.json({ active: false, stale: true });
+      return null;
+    }
+    if (role === 'phone') {
+      const p = resolvePlayer(req, g, body.as);
+      if (!p || p.id !== it.presenterId) {
+        fail(res, 403, 'To nie Ty się teraz przedstawiasz');
+        return null;
+      }
+    } else if (role !== 'tv') {
+      fail(res, 400, 'Nieznana rola');
+      return null;
+    }
+    return it;
+  }
+
+  app.post('/api/games/:code/signal', (req, res) => {
+    const g = getGame(req.params.code);
+    if (!g) return fail(res, 404, 'Nie znaleziono gry');
+    const body = req.body || {};
+    const role = body.role;
+    const it = signalAuth(req, res, g, role, body);
+    if (!it) return undefined;
+    if (body.type === 'status') {
+      if (role !== 'tv' || !INTRO_STATUSES.includes(body.value)) return fail(res, 400, 'Nieprawidłowy status');
+      if (it.status !== body.value) {
+        it.status = body.value;
+        touch(g);
+      }
+      return res.json({ success: true });
+    }
+    if (!SIGNAL_TYPES.includes(body.type)) return fail(res, 400, 'Nieznany typ wiadomości');
+    const data = body.data === undefined ? null : body.data;
+    if (JSON.stringify(data).length > 30000) return fail(res, 413, 'Wiadomość jest za duża');
+    it.seq += 1;
+    it.msgs.push({ id: it.seq, to: role === 'tv' ? 'phone' : 'tv', type: body.type, sid: String(body.sid || '').slice(0, 64), data });
+    if (it.msgs.length > 300) it.msgs.splice(0, it.msgs.length - 300);
+    res.json({ success: true, id: it.seq });
+  });
+
+  app.get('/api/games/:code/signal', (req, res) => {
+    const g = getGame(req.params.code);
+    if (!g) return fail(res, 404, 'Nie znaleziono gry');
+    const role = req.query.role;
+    const it = signalAuth(req, res, g, role, { rev: req.query.rev, as: req.query.as });
+    if (!it) return undefined;
+    const since = Number(req.query.since) || 0;
+    res.set('Cache-Control', 'no-store');
+    res.json({ active: true, status: it.status, msgs: it.msgs.filter((m) => m.to === role && m.id > since) });
+  });
+
   // ---------- Trasy ----------
   app.get('/api/games/formats', (req, res) => {
     res.json([
@@ -338,7 +431,9 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
         return res.json({ unchanged: true, version: g.version, now });
       }
       res.set('Cache-Control', 'no-store');
-      res.json(engineOf(g).viewFor(g, role, player, now));
+      const view = engineOf(g).viewFor(g, role, player, now);
+      view.intro = introView(g);
+      res.json(view);
     } catch (error) {
       console.error('Error building game state:', error);
       fail(res, 500, 'Błąd serwera');
