@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Alert, Box, Container, InputBase, Typography } from '@mui/material';
 import confetti from 'canvas-confetti';
 import { useSiteTheme } from '../ThemeContext';
-import { QuizNav } from '../quiz/QuizPages';
 import StageBackdrop from '../quiz/StageBackdrop';
 import MarqueeSign from '../quiz/MarqueeSign';
 
@@ -171,8 +170,6 @@ const TeleturniejPage = () => {
       <StageBackdrop variant="soft" />
 
       <Container maxWidth="md" sx={{ position: 'relative', zIndex: 20, py: { xs: 4, md: 6 } }}>
-        <QuizNav current="pytania" />
-
         <MarqueeSign kicker="❓ Dodaj pytanie do puli ❓" title="TELETURNIEJ" sx={{ mb: { xs: 4, md: 5 } }} />
 
         <Box component="form" onSubmit={submit} noValidate className="rise-in" sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
