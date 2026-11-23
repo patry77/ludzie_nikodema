@@ -6,3 +6,7 @@ backend/data/people.json
 .DS_Store
 *.log
 
+
+# dane robocze aplikacji (glosy, menu, itp.)
+backend/data/
+*.bak
