@@ -168,8 +168,62 @@ code {
   }
 }
 
-/* Podstrony ze starym, jasnym wygladem (admin, wakacje, wiki) - lagodniejsze naroza i cien */
+/* Podstrony z jasnymi kartami (admin, wakacje, wiki): spojny motyw swiateczny.
+   Karty zostaja kremowe (czytelne tabele i formularze), ale dostaja zlote obramowanie,
+   zaokraglenia i palete burgund/zielen zamiast przypadkowych kolorow Tailwinda. */
 .legacy-surface .MuiCard-root,
 .legacy-surface .MuiPaper-root {
   border-radius: 20px;
+}
+
+.legacy-surface .MuiCard-root,
+.legacy-surface .MuiPaper-root:not(.admin-shell) {
+  background-color: #fffdf7 !important;
+  border-color: rgba(217, 165, 33, 0.45) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22) !important;
+}
+
+/* Naglowki sekcji (stare text-blue/green/purple/yellow) */
+.legacy-surface .text-green-700,
+.legacy-surface .text-blue-700,
+.legacy-surface .text-blue-600,
+.legacy-surface .text-purple-600,
+.legacy-surface .text-yellow-400 {
+  color: #7d0c20 !important;
+  text-shadow: none !important;
+  font-family: var(--font-display);
+}
+
+/* Przyciski: gradienty Tailwinda -> paleta motywu */
+.legacy-surface .MuiButton-contained:not(.Mui-disabled) {
+  background-image: none !important;
+  background-color: #b3122f !important;
+  color: #fff !important;
+  box-shadow: 0 4px 14px rgba(179, 18, 47, 0.35);
+}
+.legacy-surface .MuiButton-contained[class*="from-green"]:not(.Mui-disabled),
+.legacy-surface .MuiButton-contained[class*="from-blue"]:not(.Mui-disabled),
+.legacy-surface .MuiButton-contained[class*="from-purple"]:not(.Mui-disabled) {
+  background-color: #1f6b4a !important;
+  box-shadow: 0 4px 14px rgba(31, 107, 74, 0.35);
+}
+.legacy-surface .MuiButton-contained[class*="from-yellow"]:not(.Mui-disabled) {
+  background-color: #f4c95d !important;
+  color: #1a1205 !important;
+}
+.legacy-surface .MuiButton-contained:not(.Mui-disabled):hover {
+  filter: brightness(1.1);
+}
+
+/* Elementy list z gradientem czerwono-zielonym -> cieple tlo */
+.legacy-surface [class*="from-red-50"] {
+  background-image: none !important;
+  background-color: #fbf3e2 !important;
+  border-color: rgba(217, 165, 33, 0.4) !important;
+}
+
+/* Naglowki tabel */
+.legacy-surface .MuiTableHead-root .MuiTableCell-root {
+  background-color: #f3ead6;
+  color: #123a2a;
 }

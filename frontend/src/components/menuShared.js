@@ -2,16 +2,18 @@ import React, { useEffect, useState } from 'react';
 import { Box, Typography } from '@mui/material';
 import { Person as PersonIcon } from '@mui/icons-material';
 
-export const WIGILIA_DATE = new Date('2026-12-24T18:00:00+01:00');
+// Odliczanie: 5 grudnia 2026, godz. 17:00 (czas polski, CET = UTC+1)
+export const COUNTDOWN_DATE = new Date('2026-12-05T17:00:00+01:00');
+export const COUNTDOWN_CAPTION = 'Do 5 grudnia, godz. 17:00';
 export const DEFAULT_MENU_MESSAGE = 'Zobacz, co przygotowaliśmy na wigilijny stół!';
 
 // Klucze kategorii zostaja bez zmian (zgodnosc z zapisanymi danymi), zmieniamy tylko etykiety.
 export const categoryLabels = {
-  wszystkie: 'Wszystko',
-  dania: '🍲 Potrawy wigilijne',
-  przekąski: '🥟 Dodatki i zakąski',
-  napoje: '🥤 Napoje i kompoty',
-  alkohole: '🍷 Trunki',
+  wszystkie: 'Wszystkie',
+  dania: '🍽️ Dania',
+  przekąski: '🍿 Przekąski',
+  napoje: '🥤 Napoje',
+  alkohole: '🍷 Alkohole',
 };
 
 export const groupItemsByCategory = (items) => {
@@ -26,7 +28,7 @@ export const groupItemsByCategory = (items) => {
 const pad = (n) => String(n).padStart(2, '0');
 
 const getRemaining = () => {
-  const diff = WIGILIA_DATE.getTime() - Date.now();
+  const diff = COUNTDOWN_DATE.getTime() - Date.now();
   if (diff <= 0) return null;
   return {
     days: Math.floor(diff / 86400000),
@@ -47,7 +49,7 @@ export const Countdown = ({ compact = false }) => {
   if (!left) {
     return (
       <Typography sx={{ color: 'var(--gold)', fontWeight: 700, fontSize: compact ? '1.4rem' : '1.2rem' }}>
-        🎄 Wesołych Świąt! 🎄
+        🎄 Już czas! 🎄
       </Typography>
     );
   }
@@ -60,7 +62,11 @@ export const Countdown = ({ compact = false }) => {
   ];
 
   return (
-    <Box sx={{ display: 'flex', gap: { xs: 1, sm: 1.5 }, justifyContent: 'center' }} aria-label="Odliczanie do Wigilii">
+    <Box sx={{ textAlign: 'center' }}>
+    <Typography sx={{ color: 'var(--ink-dim)', letterSpacing: 2, textTransform: 'uppercase', fontSize: compact ? 'clamp(0.8rem, 1.2vw, 1.1rem)' : '0.75rem', mb: 1.25 }}>
+      {COUNTDOWN_CAPTION}
+    </Typography>
+    <Box sx={{ display: 'flex', gap: { xs: 1, sm: 1.5 }, justifyContent: 'center' }} aria-label={COUNTDOWN_CAPTION}>
       {cells.map(([label, value]) => (
         <Box
           key={label}
@@ -90,6 +96,7 @@ export const Countdown = ({ compact = false }) => {
           </Typography>
         </Box>
       ))}
+    </Box>
     </Box>
   );
 };

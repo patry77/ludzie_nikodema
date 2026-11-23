@@ -135,6 +135,14 @@ app.get('/api/person/:linkId', async (req, res) => {
   }
 });
 
+// All emails a person must not draw: legacy single `excludeEmail` + list `excludeEmails` (lowercased, unique)
+function getExcludedEmails(person) {
+  const list = [];
+  if (person.excludeEmail) list.push(person.excludeEmail);
+  if (Array.isArray(person.excludeEmails)) list.push(...person.excludeEmails);
+  return [...new Set(list.filter(Boolean).map(e => String(e).trim().toLowerCase()))];
+}
+
 // Function to generate draw preview (without saving)
 function generateDrawPreview(people) {
   // Function to check if assignment is valid (respects exclusions)
@@ -143,9 +151,10 @@ function generateDrawPreview(people) {
     if (person.id === assignedPerson.id) {
       return false;
     }
-    // Check if person has excludeEmail and assigned person has that email
-    if (person.excludeEmail && assignedPerson.email) {
-      if (person.excludeEmail.toLowerCase() === assignedPerson.email.toLowerCase()) {
+    // Check if the assigned person's email is on the person's exclusion list
+    if (assignedPerson.email) {
+      const assignedEmail = assignedPerson.email.trim().toLowerCase();
+      if (getExcludedEmails(person).includes(assignedEmail)) {
         return false;
       }
     }
@@ -443,6 +452,62 @@ app.post('/api/mikolajki/join', async (req, res) => {
   } catch (error) {
     console.error('Error in public join:', error);
     res.status(500).json({ error: 'Błąd serwera. Spróbuj ponownie.' });
+  }
+});
+
+// Edit a person (admin): name, email, wishes and the list of people they must not draw
+app.put('/api/people/:id', async (req, res) => {
+  try {
+    const { name, email, wants, excludeEmails } = req.body;
+    const data = await readData();
+    const person = data.people.find(p => p.id === req.params.id);
+    if (!person) {
+      return res.status(404).json({ error: 'Person not found' });
+    }
+
+    const newName = typeof name === 'string' ? name.trim() : person.name;
+    const newEmail = typeof email === 'string' ? email.trim() : (person.email || '');
+    const newWants = typeof wants === 'string' ? wants.trim() : (person.wants || '');
+
+    if (!newName) {
+      return res.status(400).json({ error: 'Imię jest wymagane' });
+    }
+    if (newEmail && !isValidEmail(newEmail)) {
+      return res.status(400).json({ error: 'Niepoprawny format adresu email' });
+    }
+    if (data.people.some(p => p.id !== person.id && p.name.trim().toLowerCase() === newName.toLowerCase())) {
+      return res.status(400).json({ error: 'Osoba o takim imieniu już istnieje' });
+    }
+    if (newEmail && data.people.some(p => p.id !== person.id && p.email && p.email.trim().toLowerCase() === newEmail.toLowerCase())) {
+      return res.status(400).json({ error: 'Ten adres email ma już inna osoba' });
+    }
+
+    let newExcludes = getExcludedEmails(person);
+    if (Array.isArray(excludeEmails)) {
+      newExcludes = [...new Set(excludeEmails.map(e => String(e).trim().toLowerCase()).filter(Boolean))];
+      for (const ex of newExcludes) {
+        if (!isValidEmail(ex)) {
+          return res.status(400).json({ error: `Niepoprawny email do wykluczenia: ${ex}` });
+        }
+        if (ex === newEmail.toLowerCase()) {
+          return res.status(400).json({ error: 'Osoba nie może wykluczyć samej siebie' });
+        }
+        if (!data.people.some(p => p.id !== person.id && p.email && p.email.trim().toLowerCase() === ex)) {
+          return res.status(400).json({ error: `Na liście nie ma osoby z emailem ${ex}` });
+        }
+      }
+    }
+
+    person.name = newName;
+    person.email = newEmail;
+    person.wants = newWants;
+    person.excludeEmails = newExcludes;
+    person.excludeEmail = newExcludes[0] || ''; // keep legacy field in sync
+    await writeData(data);
+    res.json(person);
+  } catch (error) {
+    console.error('Error editing person:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 

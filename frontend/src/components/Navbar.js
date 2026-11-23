@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Box, Button, IconButton, Typography, Drawer, List, ListItemButton, ListItemText } from '@mui/material';
 import { Menu as MenuIcon } from '@mui/icons-material';
+import Logo from './Logo';
 
 const LINKS = [
   { to: '/', label: 'Menu wigilijne' },
@@ -62,18 +63,10 @@ const Navbar = () => {
         <Typography
           component={Link}
           to="/"
-          sx={{
-            fontFamily: 'var(--font-display)',
-            fontWeight: 800,
-            fontSize: { xs: '1.15rem', md: '1.4rem' },
-            textDecoration: 'none',
-            color: 'var(--gold)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1,
-          }}
+          aria-label="Ludzie Nikodema - strona główna"
+          sx={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}
         >
-          <span aria-hidden="true">🎄</span> Ludzie Nikodema
+          <Logo size={42} />
         </Typography>
 
         <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 0.5 }}>

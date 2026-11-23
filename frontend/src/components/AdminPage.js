@@ -31,6 +31,7 @@ import {
   FormControl,
   InputLabel,
   Link,
+  Autocomplete,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -56,6 +57,13 @@ const AdminPage = () => {
   const [newWants, setNewWants] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newExcludeEmail, setNewExcludeEmail] = useState('');
+  // Edycja osoby / prezentu (w tym lista osob, ktorych dana osoba nie moze wylosowac)
+  const [editingPerson, setEditingPerson] = useState(null);
+  const [personName, setPersonName] = useState('');
+  const [personEmail, setPersonEmail] = useState('');
+  const [personWants, setPersonWants] = useState('');
+  const [personExcludes, setPersonExcludes] = useState([]); // lista emaili
+  const [savingPerson, setSavingPerson] = useState(false);
   const [testEmail, setTestEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
@@ -174,6 +182,59 @@ const AdminPage = () => {
     } catch (error) {
       console.error('Error adding person:', error);
       showSnackbar('Błąd podczas dodawania osoby: ' + error.message);
+    }
+  };
+
+  // Wszystkie emaile wykluczone dla osoby (stare pole excludeEmail + nowa lista excludeEmails)
+  const getExcludes = (person) => {
+    const all = [];
+    if (person.excludeEmail) all.push(person.excludeEmail);
+    if (Array.isArray(person.excludeEmails)) all.push(...person.excludeEmails);
+    return [...new Set(all.map((e) => e.trim().toLowerCase()).filter(Boolean))];
+  };
+
+  const personByEmail = (email) =>
+    people.find((p) => p.email && p.email.trim().toLowerCase() === String(email).trim().toLowerCase());
+
+  const openEditPerson = (person) => {
+    setEditingPerson(person);
+    setPersonName(person.name || '');
+    setPersonEmail(person.email || '');
+    setPersonWants(person.wants || '');
+    setPersonExcludes(getExcludes(person));
+  };
+
+  const closeEditPerson = () => {
+    setEditingPerson(null);
+    setPersonExcludes([]);
+  };
+
+  const savePersonEdit = async () => {
+    if (!editingPerson || !personName.trim()) return;
+    setSavingPerson(true);
+    try {
+      const response = await fetch(`${API_URL}/people/${editingPerson.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: personName,
+          email: personEmail,
+          wants: personWants,
+          excludeEmails: personExcludes,
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        showSnackbar(result.error || 'Błąd podczas zapisywania');
+        return;
+      }
+      setPeople((prev) => prev.map((p) => (p.id === result.id ? result : p)));
+      showSnackbar('Zapisano zmiany!');
+      closeEditPerson();
+    } catch (error) {
+      showSnackbar('Błąd podczas zapisywania: ' + error.message);
+    } finally {
+      setSavingPerson(false);
     }
   };
 
@@ -814,23 +875,23 @@ const AdminPage = () => {
     <Container maxWidth="md" className="py-8 relative z-20">
       <Paper
         elevation={10}
-        className="p-8 bg-gradient-to-br from-red-50 to-green-50 border-4 border-red-300 rounded-3xl shadow-2xl"
+        className="p-8 rounded-3xl admin-shell"
         style={{
-          background: 'linear-gradient(135deg, #fff5f5 0%, #f0fff4 100%)',
-          border: '4px solid #C8102E',
+          background: 'linear-gradient(160deg, #fff9ee 0%, #f3ead6 100%)',
+          border: '1px solid rgba(217, 165, 33, 0.6)',
         }}
       >
         <Box className="text-center mb-8">
+          <Typography sx={{ letterSpacing: 4, textTransform: 'uppercase', fontSize: '0.75rem', color: '#8a6a12', mb: 1 }}>
+            Wigilia 2026
+          </Typography>
           <Typography
-            variant="h2"
-            className="mb-4 font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-green-600"
-            style={{
-              fontFamily: "'Comic Sans MS', cursive",
-              textShadow: '2px 2px 4px rgba(0,0,0,0.1)',
-            }}
+            variant="h3"
+            sx={{ fontFamily: 'var(--font-display)', fontWeight: 800, color: '#7d0c20', fontSize: { xs: '2rem', md: '2.6rem' } }}
           >
             🔐 Panel administracyjny
           </Typography>
+          <hr className="gold-rule" style={{ marginTop: 16 }} />
         </Box>
 
         {/* Add Person Section */}
@@ -935,9 +996,12 @@ const AdminPage = () => {
                               💝 Chce: {person.wants}
                             </Typography>
                           )}
-                          {person.excludeEmail && (
+                          {getExcludes(person).length > 0 && (
                             <Typography variant="body2" className="text-orange-600 mb-2 font-semibold">
-                              🚫 Nie może wylosować: {person.excludeEmail}
+                              🚫 Nie może wylosować:{' '}
+                              {getExcludes(person)
+                                .map((e) => (personByEmail(e) ? `${personByEmail(e).name} (${e})` : e))
+                                .join(', ')}
                             </Typography>
                           )}
                           <Typography variant="body2" className="text-gray-600">
@@ -955,7 +1019,16 @@ const AdminPage = () => {
                       }
                     />
                     <IconButton
+                      onClick={() => openEditPerson(person)}
+                      aria-label={`Edytuj ${person.name}`}
+                      title="Edytuj osobę, prezent i wykluczenia"
+                      className="text-blue-600"
+                    >
+                      <EditIcon />
+                    </IconButton>
+                    <IconButton
                       onClick={() => deletePerson(person.id)}
+                      aria-label={`Usuń ${person.name}`}
                       className="text-red-500 hover:bg-red-100"
                     >
                       <DeleteIcon />
@@ -1042,6 +1115,69 @@ const AdminPage = () => {
           </Alert>
         )}
       </Paper>
+
+      {/* Edit Person / Gift Dialog */}
+      <Dialog open={!!editingPerson} onClose={closeEditPerson} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ background: 'linear-gradient(120deg, #7d0c20, #b3122f)', color: '#fff6e5', fontFamily: 'var(--font-display)', fontWeight: 700 }}>
+          Edytuj osobę i prezent
+        </DialogTitle>
+        <DialogContent sx={{ pt: '24px !important' }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, pt: 1 }}>
+            <TextField label="Imię" value={personName} onChange={(e) => setPersonName(e.target.value)} fullWidth required />
+            <TextField
+              label="Email (do wysyłki linku)"
+              type="email"
+              value={personEmail}
+              onChange={(e) => setPersonEmail(e.target.value)}
+              fullWidth
+              helperText="Po tym emailu inni mogą wykluczyć tę osobę z losowania."
+            />
+            <TextField
+              label="Co chciałby/chciałaby otrzymać?"
+              value={personWants}
+              onChange={(e) => setPersonWants(e.target.value)}
+              multiline
+              rows={3}
+              fullWidth
+            />
+            <Autocomplete
+              multiple
+              options={people.filter((p) => editingPerson && p.id !== editingPerson.id && p.email).map((p) => p.email.trim().toLowerCase())}
+              value={personExcludes}
+              onChange={(e, value) => setPersonExcludes(value)}
+              getOptionLabel={(email) => (personByEmail(email) ? `${personByEmail(email).name} (${email})` : email)}
+              renderTags={(value, getTagProps) =>
+                value.map((email, index) => (
+                  <Chip
+                    {...getTagProps({ index })}
+                    key={email}
+                    size="small"
+                    color="warning"
+                    label={personByEmail(email) ? personByEmail(email).name : email}
+                  />
+                ))
+              }
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Osoby, których ta osoba nie może wylosować"
+                  placeholder="Wybierz osobę"
+                  helperText={`Możesz wybrać kilka osób. Dostępne są osoby, które mają email (${people.filter((p) => p.email).length} z ${people.length}).`}
+                />
+              )}
+              noOptionsText="Brak osób z emailem do wykluczenia"
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={closeEditPerson} color="inherit">
+            Anuluj
+          </Button>
+          <Button onClick={savePersonEdit} variant="contained" disabled={savingPerson || !personName.trim()}>
+            {savingPerson ? 'Zapisywanie...' : 'Zapisz'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Draw Preview Dialog */}
       <Dialog 

@@ -49,11 +49,12 @@ function escapeHtml(text) {
 
 // Wigilia 2026 (24 grudnia 2026)
 const EVENT_LABEL = 'Wigilia 2026';
-const EVENT_DATE = new Date('2026-12-24T18:00:00+01:00');
+// Odliczanie w mailu: do 5 grudnia 2026, godz. 17:00 (czas polski, CET = UTC+1)
+const COUNTDOWN_DATE = new Date('2026-12-05T17:00:00+01:00');
 
-// Ile dni do Wigilii (null gdy juz po terminie)
+// Ile dni do terminu (null gdy juz po terminie)
 const daysToEvent = (now = new Date()) => {
-  const diff = Math.ceil((EVENT_DATE.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  const diff = Math.ceil((COUNTDOWN_DATE.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
   return diff > 0 ? diff : null;
 };
 
@@ -66,7 +67,7 @@ const createEmailTemplate = (person, assignedPerson, baseUrl) => {
   const safeLink = escapeHtml(personLink);
   const days = daysToEvent();
   const countdown = days
-    ? `<p style="margin:0 0 6px;font-size:13px;letter-spacing:2px;text-transform:uppercase;color:#f4c95d;">Do Wigilii zostało ${days} ${pluralDays(days)}</p>`
+    ? `<p style="margin:0 0 6px;font-size:13px;letter-spacing:2px;text-transform:uppercase;color:#f4c95d;">Do 5 grudnia (godz. 17:00) zostało ${days} ${pluralDays(days)}</p>`
     : '';
 
   return `<!DOCTYPE html>
