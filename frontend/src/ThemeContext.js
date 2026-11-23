@@ -75,7 +75,7 @@ export const SiteThemeProvider = ({ children }) => {
   // Podstrona /teleturniej ma wlasny, teleturniejowy motyw niezaleznie od motywu strony
   const { pathname } = useLocation();
   const sitePreset = getTheme(settings.theme);
-  const preset = pathname === '/teleturniej' ? QUIZ_THEME : sitePreset;
+  const preset = pathname.startsWith('/teleturniej') ? QUIZ_THEME : sitePreset;
 
   useEffect(() => {
     applyCssVars(preset);

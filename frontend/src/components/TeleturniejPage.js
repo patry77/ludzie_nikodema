@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Alert, Box, Container, InputBase, Typography } from '@mui/material';
 import confetti from 'canvas-confetti';
 import { useSiteTheme } from '../ThemeContext';
+import { QuizNav } from '../quiz/QuizPages';
 
 const API_URL = process.env.REACT_APP_API_URL || '/api';
 const LETTERS = ['a', 'b', 'c', 'd'];
@@ -174,6 +175,8 @@ const TeleturniejPage = () => {
       </Box>
 
       <Container maxWidth="md" sx={{ position: 'relative', zIndex: 20, py: { xs: 4, md: 6 } }}>
+        <QuizNav current="pytania" />
+
         {/* Szyld */}
         <Box className="rise-in" sx={{ textAlign: 'center', mb: { xs: 4, md: 5 } }}>
           <Box

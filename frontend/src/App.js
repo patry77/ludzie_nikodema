@@ -13,6 +13,7 @@ import EmbedTestPage from './components/EmbedTestPage';
 import MikolajkiPage from './components/MikolajkiPage';
 import ArchivePage from './components/ArchivePage';
 import TeleturniejPage from './components/TeleturniejPage';
+import { QuizHubPage, HostPage, TvPage, PlayerPage, JoinCodePage, TestConsolePage } from './quiz/QuizPages';
 import Navbar from './components/Navbar';
 import Snowflakes from './components/Snowflakes';
 import Background from './components/Background';
@@ -23,7 +24,10 @@ const LEGACY_PATHS = ['/admin', '/wakacje', '/wiki', '/embedtest'];
 
 const Shell = () => {
   const { pathname } = useLocation();
-  const isTv = pathname === '/tvmenu';
+  // Widok TV i telefon uczestnika działają jak osobne aplikacje - bez górnej nawigacji
+  const segments = pathname.split('/').filter(Boolean);
+  const isQuizScreen = segments[0] === 'teleturniej' && segments[1] === 'gra' && (segments.length === 3 || segments[3] === 'tv');
+  const isTv = pathname === '/tvmenu' || isQuizScreen;
   const isLegacy = LEGACY_PATHS.includes(pathname);
 
   return (
@@ -39,6 +43,12 @@ const Shell = () => {
           <Route path="/tvmenu" element={<TVMenuPage />} />
           <Route path="/mikolajki" element={<MikolajkiPage />} />
           <Route path="/teleturniej" element={<TeleturniejPage />} />
+          <Route path="/teleturniej/gry" element={<QuizHubPage />} />
+          <Route path="/teleturniej/dolacz" element={<JoinCodePage />} />
+          <Route path="/teleturniej/gra/:code" element={<PlayerPage />} />
+          <Route path="/teleturniej/gra/:code/tv" element={<TvPage />} />
+          <Route path="/teleturniej/gra/:code/prowadzacy" element={<HostPage />} />
+          <Route path="/teleturniej/gra/:code/test" element={<TestConsolePage />} />
           <Route path="/archiwum" element={<ArchivePage />} />
           <Route path="/wiki" element={<WikiPage />} />
           <Route path="/wakacje" element={<WakacjePage />} />

@@ -462,6 +462,14 @@ app.delete('/api/questions/:id', async (req, res) => {
   }
 });
 
+// ---------- Quiz games (teleturniej formats) ----------
+require('./games/gameRoutes')({
+  app,
+  isAdminRequest,
+  readQuestions,
+  dataDir: path.join(__dirname, 'data'),
+});
+
 // Get all people
 app.get('/api/people', async (req, res) => {
   try {

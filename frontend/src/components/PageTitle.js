@@ -20,6 +20,12 @@ const PageTitle = () => {
       title = `Panel Administracyjny - ${preset.adminEyebrow} 🔐`;
     } else if (p === '/tvmenu') {
       title = `Menu TV - ${preset.adminEyebrow} 📺`;
+    } else if (p.startsWith('/teleturniej/gra/')) {
+      title = p.endsWith('/tv') ? 'Teleturniej - widok TV 📺' : p.endsWith('/prowadzacy') ? 'Teleturniej - panel prowadzącego 🎤' : p.endsWith('/test') ? 'Teleturniej - tryb testowy 🧪' : 'Teleturniej - gra 🎤';
+    } else if (p === '/teleturniej/gry') {
+      title = 'Teleturnieje - gry 🎮';
+    } else if (p === '/teleturniej/dolacz') {
+      title = 'Dołącz do teleturnieju 📱';
     } else if (p === '/teleturniej') {
       title = 'Teleturniej - dodaj pytanie ❓';
     } else if (p === '/archiwum') {
