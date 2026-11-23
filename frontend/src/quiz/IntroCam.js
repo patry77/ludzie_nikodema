@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Box, Button, Typography } from '@mui/material';
-import { api } from './quizApi';
+import { API, api } from './quizApi';
 
 // Przedstawianie z kamera przed startem gry (WebRTC, obraz idzie prosto z telefonu do widoku TV).
 // Serwer przekazuje tylko wiadomosci sygnalizacyjne. Przeplyw: TV wysyla "hello", telefon (ktory ma juz kamere) odpowiada "offer",
@@ -18,6 +18,9 @@ const signalUrl = (code, role, rev, since, extra) => {
 
 const sendSignal = (code, body, extra) =>
   api(`/games/${code}/signal`, { method: 'POST', admin: !!(extra && extra.as), body: { ...body, token: extra && extra.token, as: extra && extra.as } });
+
+const sendFrame = (code, rev, frame, extra) =>
+  api(`/games/${code}/intro-frame`, { method: 'POST', admin: !!(extra && extra.as), body: { rev, frame, token: extra && extra.token, as: extra && extra.as } });
 
 // Wspolna petla odpytywania: wywoluje onMsgs(lista) dla kazdej partii wiadomosci; konczy sie, gdy serwer zglosi koniec przedstawiania.
 function useSignalLoop({ code, role, rev, extra, enabled, onMsgs, onEnd }) {
@@ -88,6 +91,31 @@ export const IntroPhone = ({ code, intro, token, as }) => {
     if (videoRef.current && stream) videoRef.current.srcObject = stream;
   }, [stream]);
 
+  // Tryb zastepczy: gdy TV nie umie odebrac WebRTC, wysylamy klatki JPEG (kilka na sekunde, bez dzwieku)
+  const framesMode = intro.status === 'frames';
+  useEffect(() => {
+    if (!stream || !framesMode) return undefined;
+    let alive = true;
+    const canvas = document.createElement('canvas');
+    const loop = async () => {
+      const v = videoRef.current;
+      if (alive && v && v.videoWidth) {
+        const w = 400;
+        const h = Math.round((w * v.videoHeight) / v.videoWidth);
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d').drawImage(v, 0, 0, w, h);
+        await sendFrame(code, rev, canvas.toDataURL('image/jpeg', 0.6), { token, as });
+      }
+      if (alive) setTimeout(loop, 350);
+    };
+    loop();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stream, framesMode, code, rev, token, as]);
+
   const enable = async () => {
     setError('');
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -157,7 +185,7 @@ export const IntroPhone = ({ code, intro, token, as }) => {
         <>
           <Box component="video" ref={videoRef} autoPlay playsInline muted sx={{ width: '100%', maxHeight: 280, borderRadius: '14px', background: '#000', transform: 'scaleX(-1)' }} />
           <Typography variant="body2" sx={{ color: live ? '#8dffaf' : 'var(--ink-dim)', fontWeight: 700 }}>
-            {live ? '● Jesteś na żywo na ekranie TV' : 'Łączenie z ekranem TV...'}
+            {live ? '● Jesteś na żywo na ekranie TV' : framesMode ? '● Obraz idzie na TV w trybie zastępczym (bez dźwięku)' : 'Łączenie z ekranem TV...'}
           </Typography>
           <Button onClick={stopAll} sx={{ color: '#ff9b9b' }}>Wyłącz kamerę</Button>
         </>
@@ -176,16 +204,35 @@ export const IntroTv = ({ code, intro }) => {
   const lastStatus = useRef('');
   const helloAt = useRef(0);
   const liveRef = useRef(false);
+  const framesRef = useRef(false);
   const [live, setLive] = useState(false);
+  const [frames, setFrames] = useState(false);
+  const [frameN, setFrameN] = useState(0);
+  const [gotFrame, setGotFrame] = useState(false);
   const rev = intro.rev;
 
   const setStatus = (value) => {
+    if (framesRef.current && value !== 'live') return; // w trybie zastepczym nie nadpisujemy statusu
     if (lastStatus.current === value) return;
     lastStatus.current = value;
     sendSignal(code, { role: 'tv', rev, type: 'status', value });
   };
 
+  // Przegladarka telewizora moze nie obslugiwac WebRTC - wtedy odbieramy klatki JPEG z telefonu (bez dzwieku)
+  const startFrames = () => {
+    if (framesRef.current) return;
+    setStatus('connecting');
+    framesRef.current = true;
+    lastStatus.current = 'frames';
+    sendSignal(code, { role: 'tv', rev, type: 'status', value: 'frames' });
+    setFrames(true);
+  };
+
   const hello = () => {
+    if (typeof RTCPeerConnection === 'undefined') {
+      startFrames();
+      return;
+    }
     if (pcRef.current) {
       try {
         pcRef.current.close();
@@ -216,6 +263,7 @@ export const IntroTv = ({ code, intro }) => {
       const st = pc.connectionState;
       liveRef.current = st === 'connected';
       setLive(st === 'connected');
+      if (st === 'connected') framesRef.current = false;
       setStatus(st === 'connected' ? 'live' : st === 'failed' || st === 'disconnected' ? 'failed' : 'connecting');
       if (st === 'failed' || st === 'disconnected') setTimeout(() => sidRef.current === sid && !liveRef.current && hello(), 2500);
     };
@@ -225,10 +273,25 @@ export const IntroTv = ({ code, intro }) => {
 
   useEffect(() => {
     lastStatus.current = '';
-    hello();
+    framesRef.current = false;
+    setFrames(false);
+    const startedAt = Date.now();
+    try {
+      hello();
+    } catch (e) {
+      startFrames();
+    }
     // telefon moze wlaczyc kamere pozniej niz TV powie "hello" - powtarzamy, dopoki nie ma polaczenia
     const again = setInterval(() => {
-      if (!liveRef.current && Date.now() - helloAt.current > 9000) hello();
+      if (liveRef.current) return;
+      if (Date.now() - startedAt > 14000) startFrames();
+      if (Date.now() - helloAt.current > 9000) {
+        try {
+          hello();
+        } catch (e) {
+          startFrames();
+        }
+      }
     }, 3000);
     return () => {
       clearInterval(again);
@@ -268,7 +331,20 @@ export const IntroTv = ({ code, intro }) => {
       <Typography className="gold-text neon-title" sx={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(2rem, 5vw, 6rem)', lineHeight: 1 }}>{intro.name}</Typography>
       <Box sx={{ position: 'relative', width: 'min(70vw, 120vh)', aspectRatio: '4 / 3', maxHeight: '62vh', borderRadius: '24px', overflow: 'hidden', border: '4px solid var(--gold)', boxShadow: '0 0 60px rgba(var(--accent-rgb),0.45)', background: '#000' }}>
         <Box component="video" ref={videoRef} autoPlay playsInline sx={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
-        {!live && (
+        {frames && !live && (
+          <Box
+            component="img"
+            alt=""
+            src={`${API}/games/${code}/intro-frame?rev=${rev}&n=${frameN}`}
+            onLoad={() => {
+              setGotFrame(true);
+              setTimeout(() => setFrameN((n) => n + 1), 250);
+            }}
+            onError={() => setTimeout(() => setFrameN((n) => n + 1), 700)}
+            sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)', opacity: gotFrame ? 1 : 0 }}
+          />
+        )}
+        {!live && !(frames && gotFrame) && (
           <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', px: 3 }}>
             <Typography sx={{ color: 'var(--ink-dim)', fontSize: 'clamp(1rem, 2vw, 2.4rem)' }}>Czekamy na włączenie kamery na telefonie...</Typography>
           </Box>
@@ -279,7 +355,7 @@ export const IntroTv = ({ code, intro }) => {
 };
 
 // ---------- Panel prowadzacego ----------
-const statusText = { waiting: 'czeka na kamerę', connecting: 'łączenie…', live: 'na żywo', failed: 'brak połączenia – spróbuj ponownie' };
+const statusText = { waiting: 'czeka na kamerę', connecting: 'łączenie…', live: 'na żywo', failed: 'brak połączenia – spróbuj ponownie', frames: 'tryb zastępczy (obraz bez dźwięku)' };
 
 export const IntroHost = ({ code, intro, people }) => {
   const [busy, setBusy] = useState(false);

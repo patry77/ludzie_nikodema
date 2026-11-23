@@ -231,7 +231,7 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
   // Dziala tylko w poczekalni (przed startem gry). Stan trzymany w pamieci - nie trafia do games.json.
   const intros = new Map(); // kod gry -> { presenterId, rev, status, seq, msgs }
   const SIGNAL_TYPES = ['hello', 'offer', 'answer', 'ice', 'bye'];
-  const INTRO_STATUSES = ['waiting', 'connecting', 'live', 'failed'];
+  const INTRO_STATUSES = ['waiting', 'connecting', 'live', 'failed', 'frames'];
 
   const introView = (g) => {
     const it = intros.get(g.code);
@@ -306,6 +306,30 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
     it.msgs.push({ id: it.seq, to: role === 'tv' ? 'phone' : 'tv', type: body.type, sid: String(body.sid || '').slice(0, 64), data });
     if (it.msgs.length > 300) it.msgs.splice(0, it.msgs.length - 300);
     res.json({ success: true, id: it.seq });
+  });
+
+  // Tryb zastepczy dla przegladarek bez WebRTC (np. niektore telewizory): telefon wysyla klatki JPEG, TV je pobiera (bez dzwieku)
+  app.post('/api/games/:code/intro-frame', (req, res) => {
+    const g = getGame(req.params.code);
+    if (!g) return fail(res, 404, 'Nie znaleziono gry');
+    const body = req.body || {};
+    const it = signalAuth(req, res, g, 'phone', body);
+    if (!it) return undefined;
+    const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(typeof body.frame === 'string' ? body.frame : '');
+    if (!m) return fail(res, 400, 'Nieprawidłowa klatka');
+    const buf = Buffer.from(m[1], 'base64');
+    if (buf.length > 200 * 1024) return fail(res, 413, 'Klatka jest za duża');
+    it.frame = buf;
+    it.frameV = (it.frameV || 0) + 1;
+    res.json({ success: true });
+  });
+
+  app.get('/api/games/:code/intro-frame', (req, res) => {
+    const g = getGame(req.params.code);
+    const it = g && intros.get(g.code);
+    if (!it || !it.frame || String(req.query.rev) !== it.rev) return res.status(404).end();
+    res.set({ 'Content-Type': 'image/jpeg', 'Cache-Control': 'no-store' });
+    res.send(it.frame);
   });
 
   app.get('/api/games/:code/signal', (req, res) => {
