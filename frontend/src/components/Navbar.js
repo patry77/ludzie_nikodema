@@ -55,6 +55,7 @@ const Navbar = () => {
   const links = [
     { to: '/', label: preset.menuTitle },
     ...(preset.mikolajki ? [{ to: '/mikolajki', label: 'Mikołajki 🎁' }] : []),
+    { to: '/archiwum', label: 'Archiwum' },
     { to: '/wakacje', label: 'Wakacje' },
     { to: '/wiki', label: 'Wiki' },
   ];

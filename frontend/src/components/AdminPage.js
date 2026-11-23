@@ -35,6 +35,7 @@ import {
   InputLabel,
   Link,
   Autocomplete,
+  InputAdornment,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -49,6 +50,9 @@ import {
   ClearAll as ClearAllIcon,
   Check as CheckIcon,
   Close as CloseIcon,
+  Inventory2 as ArchiveIcon,
+  Visibility as VisibilityIcon,
+  VisibilityOff as VisibilityOffIcon,
 } from '@mui/icons-material';
 
 const API_URL = process.env.REACT_APP_API_URL || '/api';
@@ -75,6 +79,14 @@ const AdminPage = () => {
   const [password, setPassword] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showPasswordDialog, setShowPasswordDialog] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
+  const [loggingIn, setLoggingIn] = useState(false);
+  const [loginError, setLoginError] = useState('');
+  // Archiwum menu
+  const [archives, setArchives] = useState([]);
+  const [showArchiveDialog, setShowArchiveDialog] = useState(false);
+  const [archiveName, setArchiveName] = useState('');
+  const [archiving, setArchiving] = useState(false);
   const [drawPreview, setDrawPreview] = useState(null);
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [menuItems, setMenuItems] = useState([]);
@@ -117,29 +129,111 @@ const AdminPage = () => {
 
 
   useEffect(() => {
+    // Sesja jest wazna tylko, gdy zapamietane jest tez haslo (potrzebne do zapisow chronionych na serwerze)
     const auth = sessionStorage.getItem('adminAuth');
-    if (auth === 'true') {
+    if (auth === 'true' && sessionStorage.getItem('adminPass')) {
       setIsAuthenticated(true);
       setShowPasswordDialog(false);
       fetchPeople();
       fetchMenu();
       fetchAirbnb();
       fetchVoters();
+      fetchArchives();
     }
   }, []);
 
-  const handleLogin = () => {
-    // Simple password check - in production use proper authentication
-    if (password === 'admin123') { // Change this password
+  // Logowanie: haslo sprawdza serwer (POST /api/admin/login); w przegladarce nie ma zadnego zapisanego hasla
+  const handleLogin = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!password) {
+      setLoginError('Wpisz hasło');
+      return;
+    }
+    setLoggingIn(true);
+    setLoginError('');
+    try {
+      const response = await fetch(`${API_URL}/admin/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setLoginError(data.error || 'Nie udało się zalogować');
+        setPassword('');
+        return;
+      }
       setIsAuthenticated(true);
       setShowPasswordDialog(false);
       sessionStorage.setItem('adminAuth', 'true');
       sessionStorage.setItem('adminPass', password);
       fetchPeople();
       fetchMenu();
-    } else {
-      setSnackbar({ open: true, message: 'Nieprawidłowe hasło', severity: 'error' });
-      setPassword('');
+      fetchAirbnb();
+      fetchVoters();
+      fetchArchives();
+    } catch (error) {
+      setLoginError('Brak połączenia z serwerem');
+    } finally {
+      setLoggingIn(false);
+    }
+  };
+
+  const adminHeaders = () => ({
+    'Content-Type': 'application/json',
+    'x-admin-password': sessionStorage.getItem('adminPass') || '',
+  });
+
+  // ----- Archiwum menu -----
+  const fetchArchives = async () => {
+    try {
+      const response = await fetch(`${API_URL}/archives`);
+      if (response.ok) setArchives(await response.json());
+    } catch (error) {
+      console.error('Error fetching archives:', error);
+    }
+  };
+
+  const createArchive = async () => {
+    const name = archiveName.trim();
+    if (!name) return;
+    setArchiving(true);
+    try {
+      const response = await fetch(`${API_URL}/archives`, {
+        method: 'POST',
+        headers: adminHeaders(),
+        body: JSON.stringify({ name }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        showSnackbar(data.error || 'Nie udało się utworzyć archiwum');
+        return;
+      }
+      setMenuItems([]);
+      setShowArchiveDialog(false);
+      setArchiveName('');
+      await fetchArchives();
+      showSnackbar(`Menu przeniesione do archiwum „${data.archive.name}” (${data.archive.itemCount} pozycji)`);
+    } catch (error) {
+      showSnackbar('Błąd podczas archiwizacji: ' + error.message);
+    } finally {
+      setArchiving(false);
+    }
+  };
+
+  const deleteArchive = async (archive) => {
+    if (!window.confirm(`Usunąć archiwum „${archive.name}” (${archive.itemCount} pozycji)?\nTej operacji nie można cofnąć.`)) return;
+    try {
+      const response = await fetch(`${API_URL}/archives/${archive.id}`, { method: 'DELETE', headers: adminHeaders() });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        showSnackbar(data.error || 'Nie udało się usunąć archiwum');
+        return;
+      }
+      setArchives((prev) => prev.filter((a) => a.id !== archive.id));
+      showSnackbar('Archiwum zostało usunięte');
+    } catch (error) {
+      showSnackbar('Błąd podczas usuwania archiwum: ' + error.message);
     }
   };
 
@@ -845,32 +939,53 @@ const AdminPage = () => {
   if (!isAuthenticated) {
     return (
       <Container maxWidth="sm" className="py-8 relative z-20">
-        <Dialog open={showPasswordDialog} onClose={() => navigate('/')}>
-          <DialogTitle>
-            <Box className="flex items-center gap-2">
-              <LockIcon />
-              <Typography variant="h6">Panel administracyjny</Typography>
-            </Box>
-          </DialogTitle>
-          <DialogContent>
-            <TextField
-              autoFocus
-              margin="dense"
-              label="Hasło"
-              type="password"
-              fullWidth
-              variant="outlined"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
-            />
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => navigate('/')}>Anuluj</Button>
-            <Button onClick={handleLogin} variant="contained">
-              Zaloguj
-            </Button>
-          </DialogActions>
+        <Dialog open={showPasswordDialog} onClose={() => navigate('/')} maxWidth="xs" fullWidth>
+          <Box component="form" onSubmit={handleLogin} noValidate>
+            <DialogTitle sx={{ background: 'linear-gradient(120deg, var(--primary-dark), var(--primary))', color: '#fff6e5', fontFamily: 'var(--font-display)', fontWeight: 700 }}>
+              <Box className="flex items-center gap-2">
+                <LockIcon />
+                Panel administracyjny
+              </Box>
+            </DialogTitle>
+            <DialogContent sx={{ pt: '24px !important' }}>
+              <TextField
+                autoFocus
+                margin="dense"
+                label="Hasło"
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                fullWidth
+                variant="outlined"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                error={!!loginError}
+                helperText={loginError || ' '}
+                inputProps={{ style: { color: '#1a1a1a' } }}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        aria-label={showPassword ? 'Ukryj hasło' : 'Pokaż hasło'}
+                        onClick={() => setShowPassword((v) => !v)}
+                        edge="end"
+                      >
+                        {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 2 }}>
+              <Button type="button" color="inherit" onClick={() => navigate('/')}>
+                Anuluj
+              </Button>
+              <Button type="submit" variant="contained" disabled={loggingIn}>
+                {loggingIn ? 'Logowanie...' : 'Zaloguj'}
+              </Button>
+            </DialogActions>
+          </Box>
         </Dialog>
       </Container>
     );
@@ -1186,6 +1301,45 @@ const AdminPage = () => {
         </DialogActions>
       </Dialog>
 
+      {/* Archive Menu Dialog (prompt o nazwe archiwum) */}
+      <Dialog open={showArchiveDialog} onClose={() => !archiving && setShowArchiveDialog(false)} maxWidth="sm" fullWidth>
+        <Box
+          component="form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            createArchive();
+          }}
+        >
+          <DialogTitle sx={{ background: 'linear-gradient(120deg, var(--primary-dark), var(--primary))', color: '#fff6e5', fontFamily: 'var(--font-display)', fontWeight: 700 }}>
+            📦 Przenieś menu do archiwum
+          </DialogTitle>
+          <DialogContent sx={{ pt: '24px !important' }}>
+            <Typography variant="body2" sx={{ mb: 2, mt: 1 }}>
+              Wszystkie pozycje menu ({menuItems.length}) zostaną przeniesione do archiwum, a aktualne menu zostanie opróżnione.
+              Archiwum będzie dostępne na stronie w zakładce „Archiwum”.
+            </Typography>
+            <TextField
+              autoFocus
+              fullWidth
+              label="Nazwa archiwum"
+              placeholder="np. Wigilia 2026"
+              value={archiveName}
+              onChange={(e) => setArchiveName(e.target.value)}
+              inputProps={{ maxLength: 80, style: { color: '#1a1a1a' } }}
+              helperText={`${archiveName.length}/80`}
+            />
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button type="button" color="inherit" onClick={() => setShowArchiveDialog(false)} disabled={archiving}>
+              Anuluj
+            </Button>
+            <Button type="submit" variant="contained" disabled={archiving || !archiveName.trim()}>
+              {archiving ? 'Przenoszenie...' : 'Przenieś do archiwum'}
+            </Button>
+          </DialogActions>
+        </Box>
+      </Dialog>
+
       {/* Draw Preview Dialog */}
       <Dialog 
         open={showPreviewDialog} 
@@ -1309,6 +1463,38 @@ const AdminPage = () => {
           </CardContent>
         </Card>
 
+        {/* Archives */}
+        <Card className="mb-6 bg-white shadow-md border-2 border-blue-200">
+          <CardContent>
+            <Typography variant="h6" className="mb-2 font-semibold text-blue-700">
+              📦 Archiwa menu ({archives.length})
+            </Typography>
+            {archives.length === 0 ? (
+              <Typography variant="body2" className="text-gray-500">
+                Brak archiwów. Użyj przycisku „Przenieś wszystko do archiwum” przy liście pozycji menu.
+              </Typography>
+            ) : (
+              <List dense>
+                {archives.map((a) => (
+                  <ListItem
+                    key={a.id}
+                    secondaryAction={
+                      <IconButton edge="end" aria-label={`Usuń archiwum ${a.name}`} onClick={() => deleteArchive(a)} className="text-red-500">
+                        <DeleteIcon />
+                      </IconButton>
+                    }
+                  >
+                    <ListItemText
+                      primary={a.name}
+                      secondary={`${a.itemCount} pozycji · ${new Date(a.createdAt).toLocaleString('pl-PL')}`}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Menu Items List */}
         <Card className="bg-white shadow-md border-2 border-green-200">
           <CardContent>
@@ -1316,14 +1502,24 @@ const AdminPage = () => {
               <Typography variant="h6" className="font-semibold text-green-700">
                 Pozycje menu ({menuItems.length})
               </Typography>
-              <Button
-                variant="contained"
-                onClick={() => setShowAddMenuDialog(true)}
-                className="bg-gradient-to-r from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-gray-900 font-bold"
-                startIcon={<AddIcon />}
-              >
-                Dodaj pozycję
-              </Button>
+              <Box className="flex gap-2 flex-wrap justify-end">
+                <Button
+                  variant="outlined"
+                  onClick={() => setShowArchiveDialog(true)}
+                  disabled={menuItems.length === 0}
+                  startIcon={<ArchiveIcon />}
+                >
+                  Przenieś wszystko do archiwum
+                </Button>
+                <Button
+                  variant="contained"
+                  onClick={() => setShowAddMenuDialog(true)}
+                  className="bg-gradient-to-r from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-gray-900 font-bold"
+                  startIcon={<AddIcon />}
+                >
+                  Dodaj pozycję
+                </Button>
+              </Box>
             </Box>
             {menuItems.length === 0 ? (
               <Typography variant="body2" className="text-gray-500">

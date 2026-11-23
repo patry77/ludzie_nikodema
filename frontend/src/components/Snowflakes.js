@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { useSiteTheme } from '../ThemeContext';
+import FireworksCanvas from './FireworksCanvas';
 
 const COUNTS = { snow: 55, confetti: 45, sparkle: 40, orbs: 14 };
 
@@ -45,6 +46,7 @@ const Snowflakes = () => {
     });
   }, [mode, palette]);
 
+  if (mode === 'fireworks') return <FireworksCanvas colors={palette} />;
   if (items.length === 0) return null;
 
   return (

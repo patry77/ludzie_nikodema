@@ -11,6 +11,7 @@ import WikiPage from './components/WikiPage';
 import WakacjePage from './components/WakacjePage';
 import EmbedTestPage from './components/EmbedTestPage';
 import MikolajkiPage from './components/MikolajkiPage';
+import ArchivePage from './components/ArchivePage';
 import Navbar from './components/Navbar';
 import Snowflakes from './components/Snowflakes';
 import Background from './components/Background';
@@ -36,6 +37,7 @@ const Shell = () => {
           <Route path="/menu" element={<MenuPage />} />
           <Route path="/tvmenu" element={<TVMenuPage />} />
           <Route path="/mikolajki" element={<MikolajkiPage />} />
+          <Route path="/archiwum" element={<ArchivePage />} />
           <Route path="/wiki" element={<WikiPage />} />
           <Route path="/wakacje" element={<WakacjePage />} />
           <Route path="/embedtest" element={<EmbedTestPage />} />

@@ -45,7 +45,7 @@ export const THEMES = {
       garland: ['#a78bfa', '#f6d77a', '#7cc4ff', '#ffffff'],
       confetti: ['#f6d77a', '#a78bfa', '#7cc4ff', '#ffffff'],
     },
-    particles: 'sparkle',
+    particles: 'fireworks',
     garland: 'line',
     mikolajki: false,
     eyebrow: '31 grudnia 2026',

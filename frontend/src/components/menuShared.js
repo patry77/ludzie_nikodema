@@ -233,9 +233,12 @@ export const DishCard = ({ item, index = 0 }) => (
   </Box>
 );
 
-export const EmptyMenu = ({ text }) => (
-  <Box className="glass" sx={{ p: 6, textAlign: 'center' }}>
-    <Typography sx={{ fontSize: '3rem', mb: 1 }} aria-hidden="true">🎄</Typography>
-    <Typography sx={{ color: 'var(--ink-dim)' }}>{text}</Typography>
-  </Box>
-);
+export const EmptyMenu = ({ text }) => {
+  const { preset } = useSiteTheme();
+  return (
+    <Box className="glass" sx={{ p: 6, textAlign: 'center' }}>
+      <Typography sx={{ fontSize: '3rem', mb: 1 }} aria-hidden="true">{preset.emoji}</Typography>
+      <Typography sx={{ color: 'var(--ink-dim)' }}>{text}</Typography>
+    </Box>
+  );
+};

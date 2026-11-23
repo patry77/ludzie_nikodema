@@ -184,6 +184,137 @@ app.put('/api/settings', async (req, res) => {
   }
 });
 
+// ---------- Admin login (server-side password check) ----------
+const loginAttempts = new Map(); // ip -> [timestamps]
+
+app.post('/api/admin/login', (req, res) => {
+  const now = Date.now();
+  const ip = req.ip || 'unknown';
+  const recent = (loginAttempts.get(ip) || []).filter(t => now - t < 60 * 1000);
+  if (recent.length >= 8) {
+    return res.status(429).json({ error: 'Zbyt wiele prób logowania. Spróbuj ponownie za minutę.' });
+  }
+  recent.push(now);
+  loginAttempts.set(ip, recent);
+
+  const expected = process.env.ADMIN_PASSWORD || 'admin123';
+  const given = typeof req.body.password === 'string' ? req.body.password : '';
+  if (given !== expected) {
+    return res.status(401).json({ error: 'Nieprawidłowe hasło' });
+  }
+  res.json({ success: true });
+});
+
+// ---------- Menu archives ----------
+const ARCHIVES_DIR = path.join(__dirname, 'data', 'archives');
+const ARCHIVES_INDEX = path.join(ARCHIVES_DIR, 'index.json');
+const ARCHIVE_ID_RE = /^[0-9a-f-]{36}$/;
+
+async function readArchiveIndex() {
+  try {
+    return JSON.parse(await fs.readFile(ARCHIVES_INDEX, 'utf8'));
+  } catch (error) {
+    return [];
+  }
+}
+
+async function writeArchiveIndex(list) {
+  await fs.mkdir(ARCHIVES_DIR, { recursive: true });
+  await fs.writeFile(ARCHIVES_INDEX, JSON.stringify(list, null, 2));
+}
+
+app.get('/api/archives', async (req, res) => {
+  try {
+    const list = await readArchiveIndex();
+    res.json(list.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/archives/:id', async (req, res) => {
+  try {
+    if (!ARCHIVE_ID_RE.test(req.params.id)) {
+      return res.status(404).json({ error: 'Nie znaleziono archiwum' });
+    }
+    const raw = await fs.readFile(path.join(ARCHIVES_DIR, `${req.params.id}.json`), 'utf8');
+    res.json(JSON.parse(raw));
+  } catch (error) {
+    res.status(404).json({ error: 'Nie znaleziono archiwum' });
+  }
+});
+
+// Move the whole current menu into a named archive and empty the live menu.
+// The archive file is written (and re-read) BEFORE the live menu is cleared, so a failure cannot lose data.
+app.post('/api/archives', async (req, res) => {
+  try {
+    if (!isAdminRequest(req)) {
+      return res.status(401).json({ error: 'Brak uprawnień. Zaloguj się ponownie do panelu.' });
+    }
+    const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+    if (!name) {
+      return res.status(400).json({ error: 'Podaj nazwę archiwum' });
+    }
+    if (name.length > 80) {
+      return res.status(400).json({ error: 'Nazwa archiwum może mieć maks. 80 znaków' });
+    }
+
+    const index = await readArchiveIndex();
+    if (index.some(a => a.name.toLowerCase() === name.toLowerCase())) {
+      return res.status(400).json({ error: 'Archiwum o takiej nazwie już istnieje' });
+    }
+
+    const menu = await readMenuData();
+    const items = menu.items || [];
+    if (items.length === 0) {
+      return res.status(400).json({ error: 'Menu jest puste - nie ma czego archiwizować' });
+    }
+
+    const settings = await readSettings();
+    const id = uuidv4();
+    const createdAt = new Date().toISOString();
+    const archive = { id, name, createdAt, theme: settings.theme, message: menu.message || '', items };
+
+    await fs.mkdir(ARCHIVES_DIR, { recursive: true });
+    const file = path.join(ARCHIVES_DIR, `${id}.json`);
+    await fs.writeFile(file, JSON.stringify(archive, null, 2));
+    const check = JSON.parse(await fs.readFile(file, 'utf8'));
+    if (!Array.isArray(check.items) || check.items.length !== items.length) {
+      await fs.unlink(file).catch(() => {});
+      throw new Error('Weryfikacja zapisu archiwum nie powiodła się - menu nie zostało zmienione');
+    }
+
+    const meta = { id, name, createdAt, theme: settings.theme, itemCount: items.length };
+    await writeArchiveIndex([...index, meta]);
+    await writeMenuData({ ...menu, items: [], message: '' });
+
+    res.json({ success: true, archive: meta });
+  } catch (error) {
+    console.error('Error creating archive:', error);
+    res.status(500).json({ error: error.message || 'Błąd podczas tworzenia archiwum' });
+  }
+});
+
+app.delete('/api/archives/:id', async (req, res) => {
+  try {
+    if (!isAdminRequest(req)) {
+      return res.status(401).json({ error: 'Brak uprawnień. Zaloguj się ponownie do panelu.' });
+    }
+    if (!ARCHIVE_ID_RE.test(req.params.id)) {
+      return res.status(404).json({ error: 'Nie znaleziono archiwum' });
+    }
+    const index = await readArchiveIndex();
+    if (!index.some(a => a.id === req.params.id)) {
+      return res.status(404).json({ error: 'Nie znaleziono archiwum' });
+    }
+    await writeArchiveIndex(index.filter(a => a.id !== req.params.id));
+    await fs.unlink(path.join(ARCHIVES_DIR, `${req.params.id}.json`)).catch(() => {});
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get all people
 app.get('/api/people', async (req, res) => {
   try {
