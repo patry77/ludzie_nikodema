@@ -7,6 +7,9 @@ const fs = require('fs');
 const path = require('path');
 const engine = require('./jedenZDziesieciu');
 const { SAMPLE_QUESTIONS } = require('./sampleQuestions');
+const fam = require('./familiada');
+const { FAMILIADA_SAMPLE_QUESTIONS } = require('./familiadaQuestions');
+const crypto = require('crypto');
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // bez I i O (mylace z 1 i 0)
 const BOT_NAMES = ['Ania', 'Bartek', 'Celina', 'Darek', 'Ewa', 'Franek', 'Gosia', 'Heniek', 'Iza', 'Janek'];
@@ -18,7 +21,10 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
   const games = new Map();
   const joinAttempts = new Map();
   const photoLimits = new Map();
+  const FAM_QUESTIONS_FILE = path.join(dataDir, 'familiada-questions.json');
   let saveTimer = null;
+  // Kazdy format ma wlasny silnik o tym samym interfejsie (tick / viewFor)
+  const engineOf = (g) => (g.format === fam.FORMAT_ID ? fam : engine);
 
   // ---------- Zapis / odczyt ----------
   function load() {
@@ -81,7 +87,7 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
     for (const g of games.values()) {
       if (g.status !== 'running') continue;
       try {
-        if (engine.tick(g, now)) {
+        if (engineOf(g).tick(g, now)) {
           g.version++;
           saveSoon();
         }
@@ -107,6 +113,48 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
     if (input.botAccuracy !== undefined) c.botAccuracy = num(input.botAccuracy, 0.05, 0.98, c.botAccuracy);
     if (input.botSpeed !== undefined) c.botSpeed = num(input.botSpeed, 0.05, 3, c.botSpeed || 1);
     return c;
+  }
+
+  function sanitizeFamConfig(input, base) {
+    const c = { ...base };
+    if (!input || typeof input !== 'object') return c;
+    if (input.targetScore !== undefined) c.targetScore = num(input.targetScore, 50, 1000, c.targetScore);
+    if (input.finalTarget !== undefined) c.finalTarget = num(input.finalTarget, 50, 500, c.finalTarget);
+    if (input.final1Seconds !== undefined) c.final1Seconds = num(input.final1Seconds, 5, 60, c.final1Seconds);
+    if (input.final2Seconds !== undefined) c.final2Seconds = num(input.final2Seconds, 5, 90, c.final2Seconds);
+    return c;
+  }
+
+  // Zapis zdjecia uczestnika (JPEG, walidacja rozmiaru i naglowka, limit zmian)
+  function storePhoto(g, member, photo, now) {
+    const data = typeof photo === 'string' ? photo : '';
+    if (data.length > 600000) throw new Error('Zdjęcie jest za duże');
+    const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/]+={0,2})$/.exec(data);
+    if (!m) throw new Error('Nieprawidłowe zdjęcie (wymagany format JPEG)');
+    const buf = Buffer.from(m[1], 'base64');
+    if (buf.length < 200 || buf.length > 300 * 1024) throw new Error('Zdjęcie ma niepoprawny rozmiar');
+    if (buf[0] !== 0xff || buf[1] !== 0xd8 || buf[2] !== 0xff) throw new Error('To nie jest plik JPEG');
+    const rec = (photoLimits.get(member.id) || []).filter((t) => now - t < 60 * 1000);
+    if (rec.length >= 8) throw new Error('Za dużo zmian zdjęcia. Spróbuj za minutę.');
+    rec.push(now);
+    photoLimits.set(member.id, rec);
+    fs.mkdirSync(PHOTO_DIR, { recursive: true });
+    fs.writeFileSync(photoPath(g.code, member.id), buf);
+    member.photoV = (member.photoV || 0) + 1;
+  }
+
+  function readFamQuestions() {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(FAM_QUESTIONS_FILE, 'utf8'));
+      return Array.isArray(parsed.questions) ? parsed.questions : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function writeFamQuestions(list) {
+    fs.mkdirSync(dataDir, { recursive: true });
+    fs.writeFileSync(FAM_QUESTIONS_FILE, JSON.stringify({ questions: list }, null, 2));
   }
 
   function newCode() {
@@ -140,7 +188,8 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
     format: g.format,
     test: g.test,
     status: g.status,
-    stage: g.stage,
+    stage: g.stage !== undefined ? g.stage : g.phase,
+    teams: g.teams ? g.teams.map((t) => t.name) : undefined,
     players: g.players.length,
     source: g.source,
     createdAt: g.createdAt,
@@ -182,6 +231,13 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
         maxPlayers: engine.MAX_PLAYERS,
         defaults: engine.DEFAULT_CONFIG,
       },
+      {
+        id: fam.FORMAT_ID,
+        label: 'Familiada',
+        minPlayers: 0,
+        maxPlayers: 10,
+        defaults: fam.DEFAULT_CONFIG,
+      },
     ]);
   });
 
@@ -194,6 +250,23 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
     try {
       if (!requireAdmin(req, res)) return;
       const body = req.body || {};
+      if (body.format === fam.FORMAT_ID) {
+        const testFam = !!body.test;
+        const src = ['custom', 'all'].includes(body.source) ? body.source : 'sample';
+        const custom = readFamQuestions();
+        let famPool = src === 'custom' ? custom : src === 'all' ? [...FAMILIADA_SAMPLE_QUESTIONS, ...custom] : FAMILIADA_SAMPLE_QUESTIONS;
+        if (famPool.length < 12) return fail(res, 400, `W puli jest za mało pytań (${famPool.length}, potrzeba co najmniej 12). Dodaj własne albo użyj wbudowanej puli.`);
+        const fgame = fam.createGame({ code: newCode(), test: testFam, source: src, pool: famPool, config: sanitizeFamConfig(body.config, { ...fam.DEFAULT_CONFIG }) });
+        let famTester = null;
+        if (testFam) {
+          famTester = fam.addMember(fgame, { name: 'Ty (test)', team: 0, isBot: false });
+          ['Ania', 'Bartek', 'Celina'].forEach((n) => fam.addMember(fgame, { name: `Bot ${n}`, team: 0, isBot: true }));
+          ['Darek', 'Ewa', 'Franek', 'Gosia'].forEach((n) => fam.addMember(fgame, { name: `Bot ${n}`, team: 1, isBot: true }));
+        }
+        games.set(fgame.code, fgame);
+        saveSoon();
+        return res.json({ code: fgame.code, test: testFam, playerId: famTester ? famTester.id : null, token: famTester ? famTester.token : null });
+      }
       if (body.format && body.format !== engine.FORMAT_ID) return fail(res, 400, 'Nieznany format teleturnieju');
       const test = !!body.test;
       const source = body.source === 'bank' ? 'bank' : 'sample';
@@ -250,7 +323,7 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
     const now = Date.now();
     try {
       if (g.status === 'running') {
-        if (engine.tick(g, now)) touch(g);
+        if (engineOf(g).tick(g, now)) touch(g);
       }
       let player = null;
       if (role === 'host') {
@@ -265,7 +338,7 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
         return res.json({ unchanged: true, version: g.version, now });
       }
       res.set('Cache-Control', 'no-store');
-      res.json(engine.viewFor(g, role, player, now));
+      res.json(engineOf(g).viewFor(g, role, player, now));
     } catch (error) {
       console.error('Error building game state:', error);
       fail(res, 500, 'Błąd serwera');
@@ -283,6 +356,12 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
     recent.push(now);
     joinAttempts.set(ip, recent);
     try {
+      if (g.format === fam.FORMAT_ID) {
+        const teamRaw = req.body && req.body.team;
+        const pf = fam.addMember(g, { name: req.body && req.body.name, team: teamRaw === 0 || teamRaw === 1 ? teamRaw : null, isBot: false });
+        touch(g);
+        return res.json({ playerId: pf.id, token: pf.token, name: pf.name, team: pf.team });
+      }
       const p = engine.addPlayer(g, { name: req.body && req.body.name, isBot: false });
       touch(g);
       res.json({ playerId: p.id, token: p.token, seat: p.seat, name: p.name });
@@ -299,6 +378,32 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
     const body = req.body || {};
     const now = Date.now();
     try {
+      if (g.format === fam.FORMAT_ID) {
+        if (body.action === 'config') g.config = sanitizeFamConfig(body.config, g.config);
+        else if (body.action === 'memberPhoto') {
+          const target = g.players.find((p) => p.id === body.playerId);
+          if (!target) throw new Error('Nie znaleziono osoby');
+          storePhoto(g, target, body.photo, now);
+        } else if (body.action === 'removeMemberPhoto') {
+          const target = g.players.find((p) => p.id === body.playerId);
+          if (!target) throw new Error('Nie znaleziono osoby');
+          try {
+            fs.unlinkSync(photoPath(g.code, target.id));
+          } catch (e) {
+            /* nie bylo zdjecia */
+          }
+          target.photoV = 0;
+        } else if (body.action === 'kick') {
+          fam.hostAction(g, body, now);
+          try {
+            fs.unlinkSync(photoPath(g.code, body.playerId));
+          } catch (e) {
+            /* nie bylo zdjecia */
+          }
+        } else fam.hostAction(g, body, now);
+        touch(g);
+        return res.json({ success: true, version: g.version });
+      }
       switch (body.action) {
         case 'start':
           engine.start(g, now);
@@ -360,6 +465,43 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
     });
   });
 
+  // ---------- Pytania Familiady (wlasne, edytor w hubie) ----------
+  app.get('/api/familiada/questions', (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    res.json({ custom: readFamQuestions(), sampleCount: FAMILIADA_SAMPLE_QUESTIONS.length });
+  });
+
+  app.post('/api/familiada/questions', (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const body = req.body || {};
+    const pytanie = typeof body.pytanie === 'string' ? body.pytanie.trim() : '';
+    if (!pytanie || pytanie.length > 200) return fail(res, 400, 'Wpisz pytanie (maks. 200 znaków)');
+    const raw = Array.isArray(body.odpowiedzi) ? body.odpowiedzi : [];
+    const answers = raw
+      .map((a) => ({ tekst: typeof a.tekst === 'string' ? a.tekst.trim().toUpperCase() : '', punkty: Number(a.punkty) }))
+      .filter((a) => a.tekst);
+    if (answers.length < 3 || answers.length > 6) return fail(res, 400, 'Pytanie musi mieć od 3 do 6 odpowiedzi');
+    for (const a of answers) {
+      if ([...a.tekst].length > fam.MAX_ANSWER_CHARS) return fail(res, 400, `Odpowiedź „${a.tekst}” ma więcej niż ${fam.MAX_ANSWER_CHARS} znaków (tablica tyle nie pomieści)`);
+      if (!Number.isInteger(a.punkty) || a.punkty < 1 || a.punkty > 99) return fail(res, 400, `Punkty muszą być liczbą całkowitą 1–99 (odpowiedź „${a.tekst}”)`);
+    }
+    if (new Set(answers.map((a) => a.tekst)).size !== answers.length) return fail(res, 400, 'Odpowiedzi nie mogą się powtarzać');
+    answers.sort((x, y) => y.punkty - x.punkty);
+    const list = readFamQuestions();
+    list.push({ id: `fam-${crypto.randomUUID()}`, pytanie, odpowiedzi: answers, dodano: new Date().toISOString() });
+    writeFamQuestions(list);
+    res.json({ success: true, count: list.length });
+  });
+
+  app.delete('/api/familiada/questions/:id', (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const list = readFamQuestions();
+    const next = list.filter((q) => q.id !== req.params.id);
+    if (next.length === list.length) return fail(res, 404, 'Nie znaleziono pytania');
+    writeFamQuestions(next);
+    res.json({ success: true });
+  });
+
   // Akcje uczestnika (telefon)
   app.post('/api/games/:code/player', (req, res) => {
     const g = getGame(req.params.code);
@@ -369,6 +511,11 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
     if (!player) return fail(res, 401, 'Nie rozpoznano gracza - dołącz do gry ponownie');
     const now = Date.now();
     try {
+      if (g.format === fam.FORMAT_ID && body.action !== 'photo' && body.action !== 'removePhoto') {
+        fam.memberAction(g, player, body, now);
+        touch(g);
+        return res.json({ success: true, version: g.version });
+      }
       switch (body.action) {
         case 'answer':
           engine.submitAnswer(g, player.id, body.value, now);
@@ -379,23 +526,9 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
         case 'designate':
           engine.designate(g, player.id, body.targetId, now);
           break;
-        case 'photo': {
-          const photo = typeof body.photo === 'string' ? body.photo : '';
-          if (photo.length > 600000) throw new Error('Zdjęcie jest za duże');
-          const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/]+={0,2})$/.exec(photo);
-          if (!m) throw new Error('Nieprawidłowe zdjęcie (wymagany format JPEG)');
-          const buf = Buffer.from(m[1], 'base64');
-          if (buf.length < 200 || buf.length > 300 * 1024) throw new Error('Zdjęcie ma niepoprawny rozmiar');
-          if (buf[0] !== 0xff || buf[1] !== 0xd8 || buf[2] !== 0xff) throw new Error('To nie jest plik JPEG');
-          const rec = (photoLimits.get(player.id) || []).filter((t) => now - t < 60 * 1000);
-          if (rec.length >= 8) throw new Error('Za dużo zmian zdjęcia. Spróbuj za minutę.');
-          rec.push(now);
-          photoLimits.set(player.id, rec);
-          fs.mkdirSync(PHOTO_DIR, { recursive: true });
-          fs.writeFileSync(photoPath(g.code, player.id), buf);
-          player.photoV = (player.photoV || 0) + 1;
+        case 'photo':
+          storePhoto(g, player, body.photo, now);
           break;
-        }
         case 'removePhoto':
           try {
             fs.unlinkSync(photoPath(g.code, player.id));

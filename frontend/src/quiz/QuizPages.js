@@ -9,6 +9,10 @@ import StageBackdrop from './StageBackdrop';
 import MarqueeSign from './MarqueeSign';
 import { Avatar, PhotoPicker } from './Avatar';
 import { HexBar } from './QuizBits';
+import FamTv from '../familiada/FamTv';
+import FamHost from '../familiada/FamHost';
+import FamPlayer, { FamJoinForm } from '../familiada/FamPlayer';
+import { FamiliadaCard, FamiliadaQuestionEditor, FamiliadaSoundTester } from '../familiada/FamPages';
 import { api, clearStoredPlayer, getStoredPlayer, hasAdminSession, setStoredPlayer, useGameState } from './quizApi';
 
 const fieldSx = {
@@ -219,7 +223,7 @@ const GamesList = ({ reloadKey }) => {
             <Box key={g.code} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', p: 1.5, borderRadius: '14px', background: 'rgba(255,255,255,0.06)' }}>
               <Typography sx={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.5rem', color: 'var(--gold)', letterSpacing: 3 }}>{g.code}</Typography>
               <Typography sx={{ color: 'var(--ink-dim)', flex: 1, minWidth: 160 }}>
-                1 z 10 · {statusLabel[g.status]} · {g.players} graczy{g.test ? ' · test' : ''}
+                {g.format === 'familiada' ? `Familiada · ${statusLabel[g.status]} · ${(g.teams || []).map((t) => t.name).join(' vs ')}` : `1 z 10 · ${statusLabel[g.status]} · ${g.players} graczy`}{g.test ? ' · test' : ''}
               </Typography>
               {g.test && <Button size="small" component={Link} to={`/teleturniej/gra/${g.code}/test`} sx={{ color: 'var(--gold)' }}>Konsola testowa</Button>}
               <Button size="small" component={Link} to={`/teleturniej/gra/${g.code}/prowadzacy`} sx={{ color: 'var(--gold)' }}>Prowadzący</Button>
@@ -273,17 +277,57 @@ const SoundTester = () => {
   );
 };
 
+const FORMAT_TABS = [
+  { id: 'jeden-z-dziesieciu', label: '1 z 10' },
+  { id: 'familiada', label: 'Familiada' },
+];
+
 export const QuizHubPage = () => {
   const [reloadKey, setReloadKey] = useState(0);
+  const [format, setFormat] = useState(() => {
+    try {
+      return sessionStorage.getItem('quizHubFormat') === 'familiada' ? 'familiada' : 'jeden-z-dziesieciu';
+    } catch (e) {
+      return 'jeden-z-dziesieciu';
+    }
+  });
+  const pick = (id) => {
+    setFormat(id);
+    try {
+      sessionStorage.setItem('quizHubFormat', id);
+    } catch (e) {
+      /* ignorujemy */
+    }
+  };
   return (
     <AdminGate>
       <Container maxWidth="md" sx={{ py: { xs: 4, md: 6 }, position: 'relative', zIndex: 20 }}>
         <StageBackdrop variant="soft" />
         <MarqueeSign kicker="🎮 Wybierz format" title="TELETURNIEJE" sx={{ mb: 3 }} />
         <QuizNav current="gry" />
-        <FormatCard onCreated={() => setReloadKey((k) => k + 1)} />
+        <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', mb: 3, flexWrap: 'wrap' }} role="tablist" aria-label="Format teleturnieju">
+          {FORMAT_TABS.map((t) => (
+            <Button
+              key={t.id}
+              role="tab"
+              aria-selected={format === t.id}
+              onClick={() => pick(t.id)}
+              sx={{ px: 3, fontWeight: 800, color: format === t.id ? '#1a1205' : 'var(--ink)', background: format === t.id ? 'linear-gradient(120deg, var(--gold-light), var(--gold) 55%, var(--gold-deep))' : 'rgba(255,255,255,0.08)', border: '1px solid rgba(var(--accent-rgb),0.4)' }}
+            >
+              {t.label}
+            </Button>
+          ))}
+        </Box>
+        {format === 'familiada' ? <FamiliadaCard onCreated={() => setReloadKey((k) => k + 1)} /> : <FormatCard onCreated={() => setReloadKey((k) => k + 1)} />}
         <GamesList reloadKey={reloadKey} />
-        <SoundTester />
+        {format === 'familiada' ? (
+          <>
+            <FamiliadaQuestionEditor />
+            <FamiliadaSoundTester />
+          </>
+        ) : (
+          <SoundTester />
+        )}
       </Container>
     </AdminGate>
   );
@@ -318,10 +362,11 @@ const HostInner = ({ code }) => {
   const { act, busy, error, setError } = useHostActions(code);
   if (loadError && !state) return <GameError error={loadError} />;
   if (!state) return <Loading />;
+  const HostView = state.format === 'familiada' ? FamHost : GameHost;
   return (
     <Container maxWidth="xl" sx={{ py: { xs: 3, md: 5 }, position: 'relative', zIndex: 20 }}>
       <StageBackdrop variant="soft" />
-      <GameHost state={state} offsetRef={offsetRef} act={act} busy={busy} error={error} onResetError={() => setError('')} />
+      <HostView state={state} offsetRef={offsetRef} act={act} busy={busy} error={error} onResetError={() => setError('')} />
     </Container>
   );
 };
@@ -332,7 +377,7 @@ export const TvPage = () => {
   const { state, error, offsetRef } = useGameState({ code: code.toUpperCase(), role: 'tv', interval: 800 });
   if (error && !state) return <GameError error={error} />;
   if (!state) return <Loading />;
-  return <GameTv state={state} offsetRef={offsetRef} />;
+  return state.format === 'familiada' ? <FamTv state={state} offsetRef={offsetRef} /> : <GameTv state={state} offsetRef={offsetRef} />;
 };
 
 // ---------------- Telefon uczestnika ----------------
@@ -344,6 +389,34 @@ export const PlayerPage = () => {
   const [joinError, setJoinError] = useState('');
   const [joining, setJoining] = useState(false);
   const [photo, setPhoto] = useState(null);
+  const [preview, setPreview] = useState(null);
+
+  useEffect(() => {
+    if (stored) return undefined;
+    let alive = true;
+    (async () => {
+      const res = await api(`/games/${code}/state?role=tv`);
+      if (alive && res.ok) setPreview(res.data);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [code, stored]);
+
+  const joinFam = async ({ name: n, team, photo: ph }) => {
+    setJoining(true);
+    setJoinError('');
+    const res = await api(`/games/${code}/join`, { method: 'POST', body: { name: n, team } });
+    setJoining(false);
+    if (!res.ok) {
+      setJoinError(res.data.error || 'Nie udało się dołączyć');
+      return;
+    }
+    const player = { playerId: res.data.playerId, token: res.data.token, name: res.data.name, team: res.data.team };
+    if (ph) await api(`/games/${code}/player`, { method: 'POST', body: { token: player.token, action: 'photo', photo: ph } });
+    setStoredPlayer(code, player);
+    setStored(player);
+  };
 
   const join = async (e) => {
     e.preventDefault();
@@ -364,6 +437,15 @@ export const PlayerPage = () => {
     setStored(player);
   };
 
+  if (!stored && preview && preview.format === 'familiada') {
+    return (
+      <Container maxWidth="xs" sx={{ py: 6, position: 'relative', zIndex: 20 }}>
+        <StageBackdrop variant="soft" />
+        <FamJoinForm code={code} teams={preview.teams} onSubmit={joinFam} joining={joining} error={joinError} />
+      </Container>
+    );
+  }
+  if (!stored && !preview) return <Loading />;
   if (!stored) {
     return (
       <Container maxWidth="xs" sx={{ py: 6, position: 'relative', zIndex: 20 }}>
@@ -410,6 +492,14 @@ const PlayerInner = ({ code, stored, onLost }) => {
 
   if (loadError && !state && loadError.status !== 401) return <GameError error={loadError} />;
   if (!state || !state.you) return <Loading />;
+  if (state.format === 'familiada') {
+    return (
+      <>
+        <StageBackdrop variant="soft" />
+        <FamPlayer state={state} offsetRef={offsetRef} act={act} busy={busy} error={error} onResetError={() => setError('')} />
+      </>
+    );
+  }
   return <GamePlayer state={state} offsetRef={offsetRef} act={act} busy={busy} error={error} onResetError={() => setError('')} />;
 };
 
@@ -466,6 +556,18 @@ export const TestConsolePage = () => {
 };
 
 const TestInner = ({ code }) => {
+  const [format, setFormat] = useState(null);
+  useEffect(() => {
+    (async () => {
+      const res = await api(`/games/${code}/state?role=tv`);
+      setFormat(res.ok ? res.data.format : 'jeden-z-dziesieciu');
+    })();
+  }, [code]);
+  if (!format) return <Loading />;
+  return format === 'familiada' ? <FamTestInner code={code} /> : <TestInnerOne code={code} />;
+};
+
+const TestInnerOne = ({ code }) => {
   const host = useGameState({ code, role: 'host', interval: 700 });
   const hostActions = useHostActions(code);
 
@@ -547,3 +649,67 @@ const TestInner = ({ code }) => {
 };
 
 export { HexBar };
+
+// ---------------- Konsola testowa Familiady ----------------
+const FamTestInner = ({ code }) => {
+  const host = useGameState({ code, role: 'host', interval: 700 });
+  const hostActions = useHostActions(code);
+  const tester = useMemo(() => {
+    try {
+      return JSON.parse(sessionStorage.getItem(`quizTester:${code}`) || 'null');
+    } catch (e) {
+      return null;
+    }
+  }, [code]);
+  const [asId, setAsId] = useState(tester ? tester.playerId : '');
+  const members = host.state ? [...host.state.teams.flatMap((t) => t.members), ...host.state.unassigned] : [];
+  const effectiveAs = asId && members.some((p) => p.id === asId) ? asId : members[0] ? members[0].id : '';
+  const phone = useGameState({ code, role: 'player', as: effectiveAs || undefined, interval: 700 });
+  const phoneActions = usePlayerActions(code, undefined, effectiveAs);
+
+  if (host.error && !host.state) return <GameError error={host.error} />;
+  if (!host.state) return <Loading />;
+  const tvUrl = `/teleturniej/gra/${code}/tv`;
+
+  return (
+    <Container maxWidth={false} sx={{ py: 3, px: { xs: 1.5, md: 3 }, position: 'relative', zIndex: 20 }}>
+      <StageBackdrop variant="soft" />
+      <Box className="glass" sx={{ p: 2, mb: 3, display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+        <Typography sx={{ fontWeight: 800, color: '#39ff6a', fontSize: '1.1rem' }}>🧪 Familiada – tryb testowy · kod {code}</Typography>
+        <Typography sx={{ color: 'var(--ink-dim)', flex: 1, minWidth: 260, fontSize: '0.9rem' }}>
+          Panel prowadzącego, widok TV i telefon wybranej osoby na jednym ekranie. Boty podpowiadają odpowiedzi na telefonach; w oknie telefonu możesz sterować dowolną osobą (np. wcisnąć przycisk w pojedynku).
+        </Typography>
+        <Button component="a" href={tvUrl} target="_blank" rel="noopener noreferrer" variant="outlined" sx={{ color: '#39ff6a', borderColor: 'rgba(57,255,106,0.6)' }}>📺 TV w nowej karcie</Button>
+        <Button component={Link} to="/teleturniej/gry" variant="outlined" sx={{ color: 'var(--ink)', borderColor: 'rgba(255,255,255,0.3)' }}>← Gry</Button>
+      </Box>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: 'minmax(0, 1.5fr) minmax(0, 1fr)' }, gap: 3, alignItems: 'start' }}>
+        <FamHost state={host.state} offsetRef={host.offsetRef} act={hostActions.act} busy={hostActions.busy} error={hostActions.error} onResetError={() => hostActions.setError('')} />
+        <Box sx={{ display: 'grid', gap: 3, minWidth: 0 }}>
+          <Box>
+            <FormControl size="small" fullWidth sx={{ ...fieldSx, mb: 1.5 }}>
+              <InputLabel id="fam-as-label">Telefon osoby</InputLabel>
+              <Select labelId="fam-as-label" label="Telefon osoby" value={effectiveAs} onChange={(e) => setAsId(e.target.value)} sx={{ color: 'var(--ink)', '& .MuiSvgIcon-root': { color: 'var(--ink)' } }}>
+                {members.map((p) => (
+                  <MenuItem key={p.id} value={p.id}>{p.name}{p.isBot ? ' (bot)' : ''}{p.team !== null ? ` – ${host.state.teams[p.team].name}` : ''}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <Box sx={{ maxWidth: 420, mx: 'auto', borderRadius: '36px', border: '8px solid #0b0f1f', background: 'rgba(7,10,31,0.8)', boxShadow: '0 20px 60px rgba(0,0,0,0.5)', overflow: 'hidden', maxHeight: 760, overflowY: 'auto' }}>
+              {phone.state && phone.state.you ? (
+                <FamPlayer state={phone.state} offsetRef={phone.offsetRef} act={phoneActions.act} busy={phoneActions.busy} error={phoneActions.error} onResetError={() => phoneActions.setError('')} />
+              ) : (
+                <Loading text="Ładowanie telefonu..." />
+              )}
+            </Box>
+          </Box>
+          <Box>
+            <Typography sx={{ color: 'var(--ink-dim)', fontSize: '0.8rem', letterSpacing: 2, textTransform: 'uppercase', mb: 1 }}>Widok TV (podgląd)</Typography>
+            <Box sx={{ position: 'relative', paddingTop: '56.25%', borderRadius: '14px', overflow: 'hidden', border: '2px solid rgba(57,255,106,0.5)', background: '#050826' }}>
+              <iframe title="Podgląd widoku TV" src={tvUrl} style={{ position: 'absolute', top: 0, left: 0, width: '250%', height: '250%', border: 0, transform: 'scale(0.4)', transformOrigin: '0 0' }} />
+            </Box>
+          </Box>
+        </Box>
+      </Box>
+    </Container>
+  );
+};

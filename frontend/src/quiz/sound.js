@@ -245,3 +245,6 @@ export const saveSoundSettings = (role, settings) => {
     /* ignorujemy */
   }
 };
+
+// ---------- Udostepnione narzedzia dla innych zestawow dzwiekow (np. Familiada) ----------
+export const audioEngine = { getCtx, getMaster: () => master, getVolume: () => volume, tone, noise, chord };
