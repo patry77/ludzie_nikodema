@@ -2,21 +2,28 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Wartosci domyslne (motyw swiateczny). Aktywny motyw nadpisuje je z JS (ThemeContext). */
 :root {
   --night: #07140f;
   --night-2: #0c2218;
-  --pine: #123a2a;
-  --pine-light: #1f6b4a;
-  --berry: #b3122f;
-  --berry-light: #e0334f;
+  --primary: #b3122f;
+  --primary-dark: #7d0c20;
+  --primary-light: #e0334f;
+  --secondary: #1f6b4a;
+  --secondary-dark: #123a2a;
   --gold: #f4c95d;
+  --gold-light: #fff1c1;
   --gold-deep: #d9a521;
+  --accent-rgb: 244, 201, 93;
+  --glow-1: rgba(179, 18, 47, 0.38);
+  --glow-2: rgba(244, 201, 93, 0.16);
+  --glow-3: rgba(31, 107, 74, 0.55);
   --cream: #fff6e5;
   --ink: #f6efe0;
   --ink-dim: rgba(246, 239, 224, 0.72);
   --glass: rgba(255, 255, 255, 0.07);
   --glass-strong: rgba(255, 255, 255, 0.12);
-  --glass-border: rgba(244, 201, 93, 0.28);
+  --glass-border: rgba(var(--accent-rgb), 0.28);
   --font-display: 'Playfair Display', Georgia, 'Times New Roman', serif;
   --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
@@ -34,6 +41,7 @@ body {
   position: relative;
   background: var(--night);
   color: var(--ink);
+  transition: background-color 0.4s ease;
 }
 
 code {
@@ -59,7 +67,7 @@ code {
 }
 
 .gold-text {
-  background: linear-gradient(120deg, #fff1c1 0%, var(--gold) 40%, var(--gold-deep) 100%);
+  background: linear-gradient(120deg, var(--gold-light) 0%, var(--gold) 40%, var(--gold-deep) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -72,42 +80,67 @@ code {
   border: 0;
 }
 
-/* ---------- Snow ---------- */
-@keyframes snow-fall {
-  0% {
-    transform: translate3d(0, -10vh, 0);
-    opacity: 0;
-  }
-  10% {
-    opacity: var(--flake-opacity, 0.8);
-  }
-  100% {
-    transform: translate3d(var(--drift, 30px), 110vh, 0);
-    opacity: 0.1;
-  }
+/* ---------- Czasteczki tla (zaleznie od motywu) ---------- */
+.particle {
+  position: fixed;
+  pointer-events: none;
+  z-index: 1;
+  will-change: transform, opacity;
 }
 
-.snowflake {
-  position: fixed;
+/* snieg */
+@keyframes snow-fall {
+  0% { transform: translate3d(0, -10vh, 0); opacity: 0; }
+  10% { opacity: var(--p-opacity, 0.8); }
+  100% { transform: translate3d(var(--drift, 30px), 110vh, 0); opacity: 0.1; }
+}
+.particle-snow {
   top: -10px;
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 0 6px rgba(255, 255, 255, 0.6);
   animation: snow-fall linear infinite;
-  pointer-events: none;
-  z-index: 1;
 }
 
-/* ---------- Twinkling lights garland ---------- */
+/* konfetti */
+@keyframes confetti-fall {
+  0% { transform: translate3d(0, -10vh, 0) rotate(0deg); opacity: 0; }
+  8% { opacity: var(--p-opacity, 0.9); }
+  100% { transform: translate3d(var(--drift, 40px), 110vh, 0) rotate(720deg); opacity: 0.2; }
+}
+.particle-confetti {
+  top: -14px;
+  border-radius: 2px;
+  animation: confetti-fall linear infinite;
+}
+
+/* iskry unoszace sie w gore (sylwester) */
+@keyframes spark-rise {
+  0% { transform: translate3d(0, 10vh, 0) scale(0.6); opacity: 0; }
+  15% { opacity: var(--p-opacity, 0.9); }
+  100% { transform: translate3d(var(--drift, 20px), -110vh, 0) scale(1.2); opacity: 0; }
+}
+.particle-sparkle {
+  bottom: -10px;
+  border-radius: 50%;
+  animation: spark-rise linear infinite;
+}
+
+/* neonowe kule (impreza) */
+@keyframes orb-float {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.25; }
+  50% { transform: translate3d(var(--drift, 30px), -40px, 0) scale(1.25); opacity: var(--p-opacity, 0.55); }
+}
+.particle-orbs {
+  border-radius: 50%;
+  filter: blur(1px);
+  animation: orb-float ease-in-out infinite;
+}
+
+/* ---------- Girlanda (lampki) ---------- */
 @keyframes twinkle {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.35;
-    transform: scale(0.82);
-  }
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.82); }
 }
 
 .bulb {
@@ -130,16 +163,10 @@ code {
   border-radius: 2px;
 }
 
-/* ---------- Entrance animation ---------- */
+/* ---------- Animacje ---------- */
 @keyframes rise-in {
-  from {
-    opacity: 0;
-    transform: translateY(18px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .rise-in {
@@ -147,12 +174,8 @@ code {
 }
 
 @keyframes glow-pulse {
-  0%, 100% {
-    box-shadow: 0 0 0 0 rgba(244, 201, 93, 0.35);
-  }
-  50% {
-    box-shadow: 0 0 28px 6px rgba(244, 201, 93, 0.25);
-  }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0.35); }
+  50% { box-shadow: 0 0 28px 6px rgba(var(--accent-rgb), 0.25); }
 }
 
 .glow-pulse {
@@ -160,7 +183,7 @@ code {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .snowflake,
+  .particle,
   .bulb,
   .rise-in,
   .glow-pulse {
@@ -168,9 +191,9 @@ code {
   }
 }
 
-/* Podstrony z jasnymi kartami (admin, wakacje, wiki): spojny motyw swiateczny.
-   Karty zostaja kremowe (czytelne tabele i formularze), ale dostaja zlote obramowanie,
-   zaokraglenia i palete burgund/zielen zamiast przypadkowych kolorow Tailwinda. */
+/* Podstrony z jasnymi kartami (admin, wakacje, wiki): spojny motyw.
+   Karty zostaja kremowe (czytelne tabele i formularze), ale dostaja obramowanie w kolorze
+   akcentu aktywnego motywu i palete motywu zamiast przypadkowych kolorow Tailwinda. */
 .legacy-surface .MuiCard-root,
 .legacy-surface .MuiPaper-root {
   border-radius: 20px;
@@ -179,7 +202,7 @@ code {
 .legacy-surface .MuiCard-root,
 .legacy-surface .MuiPaper-root:not(.admin-shell) {
   background-color: #fffdf7 !important;
-  border-color: rgba(217, 165, 33, 0.45) !important;
+  border-color: rgba(var(--accent-rgb), 0.55) !important;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22) !important;
 }
 
@@ -189,7 +212,7 @@ code {
 .legacy-surface .text-blue-600,
 .legacy-surface .text-purple-600,
 .legacy-surface .text-yellow-400 {
-  color: #7d0c20 !important;
+  color: var(--primary-dark) !important;
   text-shadow: none !important;
   font-family: var(--font-display);
 }
@@ -197,18 +220,17 @@ code {
 /* Przyciski: gradienty Tailwinda -> paleta motywu */
 .legacy-surface .MuiButton-contained:not(.Mui-disabled) {
   background-image: none !important;
-  background-color: #b3122f !important;
+  background-color: var(--primary) !important;
   color: #fff !important;
-  box-shadow: 0 4px 14px rgba(179, 18, 47, 0.35);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
 }
 .legacy-surface .MuiButton-contained[class*="from-green"]:not(.Mui-disabled),
 .legacy-surface .MuiButton-contained[class*="from-blue"]:not(.Mui-disabled),
 .legacy-surface .MuiButton-contained[class*="from-purple"]:not(.Mui-disabled) {
-  background-color: #1f6b4a !important;
-  box-shadow: 0 4px 14px rgba(31, 107, 74, 0.35);
+  background-color: var(--secondary) !important;
 }
 .legacy-surface .MuiButton-contained[class*="from-yellow"]:not(.Mui-disabled) {
-  background-color: #f4c95d !important;
+  background-color: var(--gold) !important;
   color: #1a1205 !important;
 }
 .legacy-surface .MuiButton-contained:not(.Mui-disabled):hover {
@@ -219,11 +241,11 @@ code {
 .legacy-surface [class*="from-red-50"] {
   background-image: none !important;
   background-color: #fbf3e2 !important;
-  border-color: rgba(217, 165, 33, 0.4) !important;
+  border-color: rgba(var(--accent-rgb), 0.45) !important;
 }
 
 /* Naglowki tabel */
 .legacy-surface .MuiTableHead-root .MuiTableCell-root {
   background-color: #f3ead6;
-  color: #123a2a;
+  color: var(--secondary-dark);
 }

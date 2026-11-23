@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Container, Typography, Box, TextField, Button, Alert, CircularProgress } from '@mui/material';
 import confetti from 'canvas-confetti';
+import { Navigate } from 'react-router-dom';
+import { useSiteTheme } from '../ThemeContext';
 import { Countdown } from './menuShared';
 
 const API_URL = process.env.REACT_APP_API_URL || '/api';
@@ -11,16 +13,17 @@ const fieldSx = {
     color: 'var(--ink)',
     background: 'rgba(255,255,255,0.06)',
     borderRadius: '14px',
-    '& fieldset': { borderColor: 'rgba(244,201,93,0.35)' },
-    '&:hover fieldset': { borderColor: 'rgba(244,201,93,0.7)' },
-    '&.Mui-focused fieldset': { borderColor: '#f4c95d' },
+    '& fieldset': { borderColor: 'rgba(var(--accent-rgb),0.35)' },
+    '&:hover fieldset': { borderColor: 'rgba(var(--accent-rgb),0.7)' },
+    '&.Mui-focused fieldset': { borderColor: 'var(--gold)' },
   },
   '& .MuiInputLabel-root': { color: 'var(--ink-dim)' },
-  '& .MuiInputLabel-root.Mui-focused': { color: '#f4c95d' },
+  '& .MuiInputLabel-root.Mui-focused': { color: 'var(--gold)' },
   '& .MuiFormHelperText-root': { color: 'var(--ink-dim)' },
 };
 
 const MikolajkiPage = () => {
+  const { preset, loaded } = useSiteTheme();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [wants, setWants] = useState('');
@@ -45,7 +48,7 @@ const MikolajkiPage = () => {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Nie udało się zapisać. Spróbuj ponownie.');
       setDone({ name: data.name });
-      confetti({ particleCount: 140, spread: 90, origin: { y: 0.55 }, colors: ['#f4c95d', '#e0334f', '#2f9266', '#ffffff'] });
+      confetti({ particleCount: 140, spread: 90, origin: { y: 0.55 }, colors: preset.colors.confetti });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -59,6 +62,9 @@ const MikolajkiPage = () => {
     setEmail('');
     setWants('');
   };
+
+  // Karta Mikolajki istnieje tylko w motywie swiatecznym
+  if (loaded && !preset.mikolajki) return <Navigate to="/" replace />;
 
   return (
     <Container maxWidth="sm" sx={{ py: { xs: 4, md: 7 }, position: 'relative', zIndex: 20 }}>
@@ -82,7 +88,7 @@ const MikolajkiPage = () => {
             <Typography sx={{ color: 'var(--ink-dim)', mb: 3 }}>
               Gdy losowanie się odbędzie, dostaniesz swój osobisty link (mailem, jeśli podałeś/aś adres).
             </Typography>
-            <Button onClick={reset} variant="outlined" sx={{ color: 'var(--gold)', borderColor: 'rgba(244,201,93,0.6)' }}>
+            <Button onClick={reset} variant="outlined" sx={{ color: 'var(--gold)', borderColor: 'rgba(var(--accent-rgb),0.6)' }}>
               Dodaj kolejną osobę
             </Button>
           </Box>
@@ -131,10 +137,10 @@ const MikolajkiPage = () => {
                 py: 1.5,
                 fontWeight: 700,
                 color: '#fff6e5',
-                border: '2px solid #f4c95d',
-                background: 'linear-gradient(120deg, #7d0c20, #b3122f)',
-                '&:hover': { filter: 'brightness(1.12)', background: 'linear-gradient(120deg, #7d0c20, #b3122f)' },
-                '&.Mui-disabled': { color: 'rgba(255,246,229,0.5)', borderColor: 'rgba(244,201,93,0.3)' },
+                border: '2px solid var(--gold)',
+                background: 'linear-gradient(120deg, var(--primary-dark), var(--primary))',
+                '&:hover': { filter: 'brightness(1.12)', background: 'linear-gradient(120deg, var(--primary-dark), var(--primary))' },
+                '&.Mui-disabled': { color: 'rgba(255,246,229,0.5)', borderColor: 'rgba(var(--accent-rgb),0.3)' },
               }}
             >
               {sending ? <CircularProgress size={24} sx={{ color: '#fff6e5' }} /> : '🎅 Dołączam do losowania'}

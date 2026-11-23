@@ -1,8 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
-import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
-import theme from './theme';
+import { SiteThemeProvider } from './ThemeContext';
 import DrawPage from './components/DrawPage';
 import PersonPage from './components/PersonPage';
 import AdminPage from './components/AdminPage';
@@ -48,7 +47,7 @@ const Shell = () => {
 
 function App() {
   return (
-    <ThemeProvider theme={theme}>
+    <SiteThemeProvider>
       <CssBaseline />
       <div className="min-h-screen relative overflow-hidden">
         <Background />
@@ -57,7 +56,7 @@ function App() {
           <Shell />
         </Router>
       </div>
-    </ThemeProvider>
+    </SiteThemeProvider>
   );
 }
 

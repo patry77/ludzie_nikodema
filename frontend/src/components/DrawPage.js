@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Typography, Box, Grid } from '@mui/material';
 import {
-  DEFAULT_MENU_MESSAGE,
+  resolveMenuMessage,
   categoryLabels,
   groupItemsByCategory,
   MenuHero,
@@ -9,13 +9,15 @@ import {
   DishCard,
   EmptyMenu,
 } from './menuShared';
+import { useSiteTheme } from '../ThemeContext';
 
 const API_URL = process.env.REACT_APP_API_URL || '/api';
 
 // Strona glowna: publiczne menu wigilijne (tylko do czytania)
 const DrawPage = () => {
+  const { preset } = useSiteTheme();
   const [menuItems, setMenuItems] = useState([]);
-  const [menuMessage, setMenuMessage] = useState(DEFAULT_MENU_MESSAGE);
+  const [menuMessage, setMenuMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('wszystkie');
 
@@ -41,14 +43,14 @@ const DrawPage = () => {
 
   return (
     <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 }, position: 'relative', zIndex: 20 }}>
-      <MenuHero message={menuMessage} />
+      <MenuHero message={resolveMenuMessage(menuMessage, preset)} />
 
       {menuItems.length > 0 && <CategoryFilter value={selectedCategory} onChange={setSelectedCategory} />}
 
       {loading ? (
         <Typography sx={{ textAlign: 'center', color: 'var(--ink-dim)', py: 6 }}>Ładowanie menu...</Typography>
       ) : menuItems.length === 0 ? (
-        <EmptyMenu text="Wigilijny stół jest jeszcze pusty. Wkrótce pojawią się tu potrawy!" />
+        <EmptyMenu text={preset.emptyMenu} />
       ) : (
         Object.entries(groupItemsByCategory(filtered)).map(([key, items]) =>
           items.length === 0 ? null : (

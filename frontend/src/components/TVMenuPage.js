@@ -8,13 +8,15 @@ import {
 import {
   Person as PersonIcon,
 } from '@mui/icons-material';
-import { DEFAULT_MENU_MESSAGE, categoryLabels, Countdown } from './menuShared';
+import { resolveMenuMessage, categoryLabels, Countdown } from './menuShared';
+import { useSiteTheme } from '../ThemeContext';
 
 const API_URL = process.env.REACT_APP_API_URL || '/api';
 
 const TVMenuPage = () => {
+  const { preset } = useSiteTheme();
   const [menuItems, setMenuItems] = useState([]);
-  const [menuMessage, setMenuMessage] = useState(DEFAULT_MENU_MESSAGE);
+  const [menuMessage, setMenuMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -124,7 +126,7 @@ const TVMenuPage = () => {
           marginBottom: '1.5vh',
           padding: '1.5vh',
           background: 'rgba(255, 255, 255, 0.07)',
-          border: '1px solid rgba(244, 201, 93, 0.4)',
+          border: '1px solid rgba(var(--accent-rgb), 0.4)',
           borderRadius: '24px',
           backdropFilter: 'blur(12px)',
         }}
@@ -137,7 +139,7 @@ const TVMenuPage = () => {
             marginBottom: '0.5vh',
           }}
         >
-          🎄 Menu Wigilijne 2026 🎄
+          {preset.emoji} {preset.menuTitle} {preset.emoji}
         </Typography>
         <Typography
           variant="h4"
@@ -147,7 +149,7 @@ const TVMenuPage = () => {
             marginBottom: '1vh',
           }}
         >
-          {menuMessage}
+          {resolveMenuMessage(menuMessage, preset)}
         </Typography>
         <Countdown compact />
       </Box>
@@ -182,7 +184,7 @@ const TVMenuPage = () => {
                 display: 'flex',
                 flexDirection: 'column',
                 background: 'rgba(10, 28, 20, 0.82)',
-                border: '1px solid rgba(244, 201, 93, 0.45)',
+                border: '1px solid rgba(var(--accent-rgb), 0.45)',
                 borderRadius: '20px',
                 overflow: 'hidden',
                 boxShadow: '0 8px 16px rgba(0,0,0,0.5)',
@@ -195,7 +197,7 @@ const TVMenuPage = () => {
                   position: 'absolute',
                   top: '1vh',
                   right: '1vh',
-                  background: 'rgba(244, 201, 93, 0.95)',
+                  background: 'rgba(var(--accent-rgb), 0.95)',
                   color: '#1a1205',
                   padding: '0.5vh 1vw',
                   borderRadius: '10px',

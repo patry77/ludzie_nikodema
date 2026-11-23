@@ -3,16 +3,18 @@ import { Link, useLocation } from 'react-router-dom';
 import { Box, Button, IconButton, Typography, Drawer, List, ListItemButton, ListItemText } from '@mui/material';
 import { Menu as MenuIcon } from '@mui/icons-material';
 import Logo from './Logo';
+import { useSiteTheme } from '../ThemeContext';
 
-const LINKS = [
-  { to: '/', label: 'Menu wigilijne' },
-  { to: '/mikolajki', label: 'Mikołajki 🎁' },
-  { to: '/wakacje', label: 'Wakacje' },
-  { to: '/wiki', label: 'Wiki' },
-];
-
-const Bulbs = () => {
-  const colors = ['#e0334f', '#f4c95d', '#2f9266', '#7cc4ff', '#e0334f', '#f4c95d', '#2f9266'];
+// Girlanda: lampki w motywie swiatecznym, w pozostalych cienka kolorowa linia.
+const Garland = ({ kind, colors }) => {
+  if (kind !== 'bulbs') {
+    return (
+      <Box
+        aria-hidden="true"
+        sx={{ height: 3, background: `linear-gradient(90deg, ${colors.join(', ')}, ${colors[0]})`, opacity: 0.9 }}
+      />
+    );
+  }
   return (
     <Box
       aria-hidden="true"
@@ -25,25 +27,37 @@ const Bulbs = () => {
         borderTop: '2px solid rgba(255,255,255,0.12)',
       }}
     >
-      {Array.from({ length: 28 }, (_, i) => (
-        <span
-          key={i}
-          className="bulb"
-          style={{
-            background: colors[i % colors.length],
-            boxShadow: `0 0 10px 2px ${colors[i % colors.length]}88`,
-            animationDelay: `${(i % 7) * 0.35}s`,
-            marginTop: 6 + (i % 2) * 2,
-          }}
-        />
-      ))}
+      {Array.from({ length: 28 }, (_, i) => {
+        const color = colors[i % colors.length];
+        return (
+          <span
+            key={i}
+            className="bulb"
+            style={{
+              background: color,
+              boxShadow: `0 0 10px 2px ${color}88`,
+              animationDelay: `${(i % 7) * 0.35}s`,
+              marginTop: 6 + (i % 2) * 2,
+            }}
+          />
+        );
+      })}
     </Box>
   );
 };
 
 const Navbar = () => {
   const { pathname } = useLocation();
+  const { preset } = useSiteTheme();
   const [open, setOpen] = React.useState(false);
+
+  // Karta "Mikolajki" jest widoczna tylko w motywie swiatecznym
+  const links = [
+    { to: '/', label: preset.menuTitle },
+    ...(preset.mikolajki ? [{ to: '/mikolajki', label: 'Mikołajki 🎁' }] : []),
+    { to: '/wakacje', label: 'Wakacje' },
+    { to: '/wiki', label: 'Wiki' },
+  ];
 
   const isActive = (to) => (to === '/' ? pathname === '/' || pathname === '/menu' : pathname.startsWith(to));
 
@@ -53,10 +67,10 @@ const Navbar = () => {
         position: 'sticky',
         top: 0,
         zIndex: 40,
-        background: 'rgba(7, 20, 15, 0.72)',
+        background: 'color-mix(in srgb, var(--night) 72%, transparent)',
         backdropFilter: 'blur(14px)',
         WebkitBackdropFilter: 'blur(14px)',
-        borderBottom: '1px solid rgba(244, 201, 93, 0.25)',
+        borderBottom: '1px solid rgba(var(--accent-rgb), 0.25)',
       }}
     >
       <Box sx={{ maxWidth: 1200, mx: 'auto', px: { xs: 2, md: 3 }, py: 1.25, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -70,14 +84,14 @@ const Navbar = () => {
         </Typography>
 
         <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 0.5 }}>
-          {LINKS.map((l) => (
+          {links.map((l) => (
             <Button
               key={l.to}
               component={Link}
               to={l.to}
               sx={{
                 color: isActive(l.to) ? '#1a1205' : 'var(--ink)',
-                background: isActive(l.to) ? 'linear-gradient(120deg, #fff1c1, #f4c95d 55%, #d9a521)' : 'transparent',
+                background: isActive(l.to) ? 'linear-gradient(120deg, var(--gold-light), var(--gold) 55%, var(--gold-deep))' : 'transparent',
                 '&:hover': { background: isActive(l.to) ? undefined : 'rgba(255,255,255,0.1)' },
               }}
             >
@@ -94,16 +108,16 @@ const Navbar = () => {
           <MenuIcon />
         </IconButton>
       </Box>
-      <Bulbs />
+      <Garland kind={preset.garland} colors={preset.colors.garland} />
 
       <Drawer
         anchor="right"
         open={open}
         onClose={() => setOpen(false)}
-        PaperProps={{ sx: { background: '#0c2218', color: 'var(--ink)', width: 250, borderLeft: '1px solid rgba(244,201,93,0.3)' } }}
+        PaperProps={{ sx: { background: 'var(--night-2)', color: 'var(--ink)', width: 250, borderLeft: '1px solid rgba(var(--accent-rgb),0.3)' } }}
       >
         <List sx={{ pt: 3 }}>
-          {LINKS.map((l) => (
+          {links.map((l) => (
             <ListItemButton key={l.to} component={Link} to={l.to} onClick={() => setOpen(false)} selected={isActive(l.to)}>
               <ListItemText primary={l.label} />
             </ListItemButton>

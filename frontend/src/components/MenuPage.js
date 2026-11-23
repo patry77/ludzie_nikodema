@@ -19,7 +19,7 @@ import {
 } from '@mui/material';
 import { Add as AddIcon } from '@mui/icons-material';
 import {
-  DEFAULT_MENU_MESSAGE,
+  resolveMenuMessage,
   categoryLabels,
   groupItemsByCategory,
   MenuHero,
@@ -27,13 +27,15 @@ import {
   DishCard,
   EmptyMenu,
 } from './menuShared';
+import { useSiteTheme } from '../ThemeContext';
 
 const API_URL = '/api';
 
 // /menu: menu wigilijne z mozliwoscia dodawania pozycji przez gosci
 const MenuPage = () => {
+  const { preset } = useSiteTheme();
   const [menuItems, setMenuItems] = useState([]);
-  const [menuMessage, setMenuMessage] = useState(DEFAULT_MENU_MESSAGE);
+  const [menuMessage, setMenuMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
@@ -139,7 +141,7 @@ const MenuPage = () => {
 
   return (
     <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 }, position: 'relative', zIndex: 20 }}>
-      <MenuHero message={menuMessage}>
+      <MenuHero message={resolveMenuMessage(menuMessage, preset)}>
         <Button
           variant="contained"
           size="large"
@@ -148,7 +150,7 @@ const MenuPage = () => {
           sx={{
             color: '#1a1205',
             fontWeight: 700,
-            background: 'linear-gradient(120deg, #fff1c1, #f4c95d 55%, #d9a521)',
+            background: 'linear-gradient(120deg, var(--gold-light), var(--gold) 55%, var(--gold-deep))',
             '&:hover': { filter: 'brightness(1.06)' },
           }}
         >
@@ -161,7 +163,7 @@ const MenuPage = () => {
       {loading ? (
         <Typography sx={{ textAlign: 'center', color: 'var(--ink-dim)', py: 6 }}>Ładowanie menu...</Typography>
       ) : menuItems.length === 0 ? (
-        <EmptyMenu text="Menu jest puste. Dodaj pierwszą pozycję!" />
+        <EmptyMenu text={preset.emptyMenu} />
       ) : (
         Object.entries(groupItemsByCategory(filtered)).map(([key, items]) =>
           items.length === 0 ? null : (
@@ -184,8 +186,8 @@ const MenuPage = () => {
 
       {/* Add Item Dialog */}
       <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
-        <DialogTitle sx={{ background: 'linear-gradient(120deg, #7d0c20, #b3122f)', color: '#fff6e5', fontFamily: 'var(--font-display)', fontWeight: 700 }}>
-          Dodaj pozycję do menu wigilijnego
+        <DialogTitle sx={{ background: 'linear-gradient(120deg, var(--primary-dark), var(--primary))', color: '#fff6e5', fontFamily: 'var(--font-display)', fontWeight: 700 }}>
+          Dodaj pozycję do menu
         </DialogTitle>
         <DialogContent sx={{ pt: '24px !important' }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, pt: 1 }}>

@@ -1,13 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Typography } from '@mui/material';
 import { Person as PersonIcon } from '@mui/icons-material';
+import { THEMES } from '../themes';
+import { useSiteTheme } from '../ThemeContext';
 
-// Odliczanie: 5 grudnia 2026, godz. 17:00 (czas polski, CET = UTC+1)
-export const COUNTDOWN_DATE = new Date('2026-12-05T17:00:00+01:00');
-export const COUNTDOWN_CAPTION = 'Do 5 grudnia, godz. 17:00';
-export const DEFAULT_MENU_MESSAGE = 'Zobacz, co przygotowaliśmy na wigilijny stół!';
+// Stare teksty domyslne zapisane w menu.json - dla innych motywow zastepujemy je tekstem motywu.
+const KNOWN_DEFAULT_MESSAGES = [
+  'Zobacz co przygotowaliśmy na sylwestra!',
+  ...Object.values(THEMES).map((t) => t.menuMessage),
+];
 
-// Klucze kategorii zostaja bez zmian (zgodnosc z zapisanymi danymi), zmieniamy tylko etykiety.
+// Wiadomosc nad menu: wlasna wiadomosc z panelu admina albo domyslna dla aktywnego motywu.
+export const resolveMenuMessage = (fromServer, preset) => {
+  const msg = (fromServer || '').trim();
+  return !msg || KNOWN_DEFAULT_MESSAGES.includes(msg) ? preset.menuMessage : msg;
+};
+
+// Klucze kategorii zostaja bez zmian (zgodnosc z zapisanymi danymi)
 export const categoryLabels = {
   wszystkie: 'Wszystkie',
   dania: '🍽️ Dania',
@@ -27,8 +36,8 @@ export const groupItemsByCategory = (items) => {
 
 const pad = (n) => String(n).padStart(2, '0');
 
-const getRemaining = () => {
-  const diff = COUNTDOWN_DATE.getTime() - Date.now();
+const getRemaining = (target) => {
+  const diff = target.getTime() - Date.now();
   if (diff <= 0) return null;
   return {
     days: Math.floor(diff / 86400000),
@@ -38,18 +47,25 @@ const getRemaining = () => {
   };
 };
 
+// Odliczanie do daty ustawionej w panelu admina (albo domyslnej dla motywu). Brak daty = nic nie pokazujemy.
 export const Countdown = ({ compact = false }) => {
-  const [left, setLeft] = useState(getRemaining());
+  const { countdown } = useSiteTheme();
+  const target = countdown ? countdown.date : null;
+  const [left, setLeft] = useState(() => (target ? getRemaining(target) : null));
 
   useEffect(() => {
-    const t = setInterval(() => setLeft(getRemaining()), 1000);
+    if (!target) return undefined;
+    setLeft(getRemaining(target));
+    const t = setInterval(() => setLeft(getRemaining(target)), 1000);
     return () => clearInterval(t);
-  }, []);
+  }, [target]);
+
+  if (!countdown) return null;
 
   if (!left) {
     return (
       <Typography sx={{ color: 'var(--gold)', fontWeight: 700, fontSize: compact ? '1.4rem' : '1.2rem' }}>
-        🎄 Już czas! 🎄
+        🎉 Już czas! 🎉
       </Typography>
     );
   }
@@ -63,74 +79,77 @@ export const Countdown = ({ compact = false }) => {
 
   return (
     <Box sx={{ textAlign: 'center' }}>
-    <Typography sx={{ color: 'var(--ink-dim)', letterSpacing: 2, textTransform: 'uppercase', fontSize: compact ? 'clamp(0.8rem, 1.2vw, 1.1rem)' : '0.75rem', mb: 1.25 }}>
-      {COUNTDOWN_CAPTION}
-    </Typography>
-    <Box sx={{ display: 'flex', gap: { xs: 1, sm: 1.5 }, justifyContent: 'center' }} aria-label={COUNTDOWN_CAPTION}>
-      {cells.map(([label, value]) => (
-        <Box
-          key={label}
-          sx={{
-            minWidth: compact ? 'clamp(70px, 6vw, 110px)' : { xs: 60, sm: 76 },
-            py: compact ? 1.5 : 1,
-            borderRadius: '16px',
-            textAlign: 'center',
-            background: 'rgba(255,255,255,0.08)',
-            border: '1px solid rgba(244,201,93,0.35)',
-          }}
-        >
-          <Typography
+      <Typography sx={{ color: 'var(--ink-dim)', letterSpacing: 2, textTransform: 'uppercase', fontSize: compact ? 'clamp(0.8rem, 1.2vw, 1.1rem)' : '0.75rem', mb: 1.25 }}>
+        {countdown.label}
+      </Typography>
+      <Box sx={{ display: 'flex', gap: { xs: 1, sm: 1.5 }, justifyContent: 'center' }} aria-label={countdown.label}>
+        {cells.map(([label, value]) => (
+          <Box
+            key={label}
             sx={{
-              fontFamily: 'var(--font-display)',
-              fontWeight: 800,
-              lineHeight: 1,
-              fontSize: compact ? 'clamp(1.8rem, 3.2vw, 3.2rem)' : { xs: '1.5rem', sm: '1.9rem' },
-              color: 'var(--gold)',
-              fontVariantNumeric: 'tabular-nums',
+              minWidth: compact ? 'clamp(70px, 6vw, 110px)' : { xs: 60, sm: 76 },
+              py: compact ? 1.5 : 1,
+              borderRadius: '16px',
+              textAlign: 'center',
+              background: 'rgba(255,255,255,0.08)',
+              border: '1px solid rgba(var(--accent-rgb),0.35)',
             }}
           >
-            {value}
-          </Typography>
-          <Typography sx={{ fontSize: compact ? 'clamp(0.7rem, 1vw, 1rem)' : '0.7rem', color: 'var(--ink-dim)', letterSpacing: 1.5, textTransform: 'uppercase', mt: 0.5 }}>
-            {label}
-          </Typography>
-        </Box>
-      ))}
-    </Box>
+            <Typography
+              sx={{
+                fontFamily: 'var(--font-display)',
+                fontWeight: 800,
+                lineHeight: 1,
+                fontSize: compact ? 'clamp(1.8rem, 3.2vw, 3.2rem)' : { xs: '1.5rem', sm: '1.9rem' },
+                color: 'var(--gold)',
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {value}
+            </Typography>
+            <Typography sx={{ fontSize: compact ? 'clamp(0.7rem, 1vw, 1rem)' : '0.7rem', color: 'var(--ink-dim)', letterSpacing: 1.5, textTransform: 'uppercase', mt: 0.5 }}>
+              {label}
+            </Typography>
+          </Box>
+        ))}
+      </Box>
     </Box>
   );
 };
 
-export const MenuHero = ({ message, children }) => (
-  <Box className="glass rise-in" sx={{ textAlign: 'center', px: { xs: 3, md: 6 }, py: { xs: 5, md: 7 }, mb: 5, position: 'relative', overflow: 'hidden' }}>
-    <Box
-      aria-hidden="true"
-      sx={{
-        position: 'absolute',
-        inset: 0,
-        pointerEvents: 'none',
-        background: 'radial-gradient(600px 220px at 50% 0%, rgba(244,201,93,0.18), transparent 70%)',
-      }}
-    />
-    <Typography sx={{ letterSpacing: 4, textTransform: 'uppercase', fontSize: '0.8rem', color: 'var(--gold)', mb: 1.5, position: 'relative' }}>
-      24 grudnia 2026
-    </Typography>
-    <Typography
-      variant="h2"
-      className="gold-text"
-      sx={{ fontSize: { xs: '2.4rem', sm: '3.4rem', md: '4.2rem' }, lineHeight: 1.1, mb: 2, position: 'relative' }}
-    >
-      Menu Wigilijne
-    </Typography>
-    <Typography sx={{ color: 'var(--ink-dim)', fontSize: { xs: '1rem', md: '1.2rem' }, maxWidth: 640, mx: 'auto', mb: 4, position: 'relative' }}>
-      {message}
-    </Typography>
-    <Box sx={{ position: 'relative' }}>
-      <Countdown />
+export const MenuHero = ({ message, children }) => {
+  const { preset } = useSiteTheme();
+  return (
+    <Box className="glass rise-in" sx={{ textAlign: 'center', px: { xs: 3, md: 6 }, py: { xs: 5, md: 7 }, mb: 5, position: 'relative', overflow: 'hidden' }}>
+      <Box
+        aria-hidden="true"
+        sx={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          background: 'radial-gradient(600px 220px at 50% 0%, rgba(var(--accent-rgb),0.18), transparent 70%)',
+        }}
+      />
+      <Typography sx={{ letterSpacing: 4, textTransform: 'uppercase', fontSize: '0.8rem', color: 'var(--gold)', mb: 1.5, position: 'relative' }}>
+        {preset.eyebrow}
+      </Typography>
+      <Typography
+        variant="h2"
+        className="gold-text"
+        sx={{ fontSize: { xs: '2.4rem', sm: '3.4rem', md: '4.2rem' }, lineHeight: 1.1, mb: 2, position: 'relative' }}
+      >
+        {preset.menuTitle}
+      </Typography>
+      <Typography sx={{ color: 'var(--ink-dim)', fontSize: { xs: '1rem', md: '1.2rem' }, maxWidth: 640, mx: 'auto', mb: 4, position: 'relative' }}>
+        {message}
+      </Typography>
+      <Box sx={{ position: 'relative' }}>
+        <Countdown />
+      </Box>
+      {children && <Box sx={{ mt: 4, position: 'relative' }}>{children}</Box>}
     </Box>
-    {children && <Box sx={{ mt: 4, position: 'relative' }}>{children}</Box>}
-  </Box>
-);
+  );
+};
 
 export const CategoryFilter = ({ value, onChange }) => (
   <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', flexWrap: 'wrap', mb: 5 }}>
@@ -151,9 +170,9 @@ export const CategoryFilter = ({ value, onChange }) => (
             px: 2.5,
             py: 1,
             borderRadius: 999,
-            border: active ? '1px solid transparent' : '1px solid rgba(244,201,93,0.4)',
+            border: active ? '1px solid transparent' : '1px solid rgba(var(--accent-rgb),0.4)',
             color: active ? '#1a1205' : 'var(--ink)',
-            background: active ? 'linear-gradient(120deg, #fff1c1, #f4c95d 55%, #d9a521)' : 'rgba(255,255,255,0.05)',
+            background: active ? 'linear-gradient(120deg, var(--gold-light), var(--gold) 55%, var(--gold-deep))' : 'rgba(255,255,255,0.05)',
             transition: 'transform .15s ease, background .15s ease',
             '&:hover': { transform: 'translateY(-2px)', background: active ? undefined : 'rgba(255,255,255,0.12)' },
           }}
@@ -175,7 +194,7 @@ export const DishCard = ({ item, index = 0 }) => (
       overflow: 'hidden',
       animationDelay: `${Math.min(index, 12) * 60}ms`,
       transition: 'transform .25s ease, border-color .25s ease',
-      '&:hover': { transform: 'translateY(-6px)', borderColor: 'rgba(244,201,93,0.65)' },
+      '&:hover': { transform: 'translateY(-6px)', borderColor: 'rgba(var(--accent-rgb),0.65)' },
     }}
   >
     {item.image && (

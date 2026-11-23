@@ -1,41 +1,70 @@
 import React, { useMemo } from 'react';
+import { useSiteTheme } from '../ThemeContext';
 
-const FLAKES = 55;
+const COUNTS = { snow: 55, confetti: 45, sparkle: 40, orbs: 14 };
 
-// Platki sa losowane raz (useMemo), zeby nie "skakaly" przy kazdym renderze.
+const rand = (min, max) => min + Math.random() * (max - min);
+
+// Czasteczki tla zalezne od motywu: snieg, konfetti, iskry, neonowe kule albo nic.
+// Losowane raz na zmiane motywu (useMemo), zeby nie "skakaly" przy kazdym renderze.
 const Snowflakes = () => {
-  const flakes = useMemo(
-    () =>
-      Array.from({ length: FLAKES }, (_, i) => {
-        const size = 2 + Math.random() * 5;
+  const { preset } = useSiteTheme();
+  const mode = preset.particles;
+  const palette = preset.colors.confetti;
+
+  const items = useMemo(() => {
+    const count = COUNTS[mode] || 0;
+    return Array.from({ length: count }, (_, i) => {
+      const color = palette[Math.floor(Math.random() * palette.length)];
+      if (mode === 'snow') {
+        const size = rand(2, 7);
         return {
-          id: i,
-          left: Math.random() * 100,
-          size,
-          delay: -Math.random() * 20,
-          duration: 12 + Math.random() * 16,
-          drift: (Math.random() - 0.5) * 120,
-          opacity: 0.35 + Math.random() * 0.55,
+          id: i, left: rand(0, 100), width: size, height: size, delay: -rand(0, 20), duration: rand(12, 28),
+          drift: rand(-60, 60), opacity: rand(0.35, 0.9), background: undefined, blur: size > 5 ? 0.6 : 0,
         };
-      }),
-    []
-  );
+      }
+      if (mode === 'confetti') {
+        return {
+          id: i, left: rand(0, 100), width: rand(6, 11), height: rand(10, 18), delay: -rand(0, 16), duration: rand(9, 18),
+          drift: rand(-80, 80), opacity: rand(0.6, 0.95), background: color, blur: 0,
+        };
+      }
+      if (mode === 'sparkle') {
+        const size = rand(2, 5);
+        return {
+          id: i, left: rand(0, 100), width: size, height: size, delay: -rand(0, 14), duration: rand(8, 18),
+          drift: rand(-40, 40), opacity: rand(0.5, 1), background: color, glow: color, blur: 0,
+        };
+      }
+      // orbs
+      const size = rand(40, 130);
+      return {
+        id: i, left: rand(0, 95), top: rand(5, 95), width: size, height: size, delay: -rand(0, 10), duration: rand(7, 14),
+        drift: rand(-40, 40), opacity: rand(0.3, 0.6), background: color, blur: 14,
+      };
+    });
+  }, [mode, palette]);
+
+  if (items.length === 0) return null;
 
   return (
     <div aria-hidden="true" className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 1 }}>
-      {flakes.map((f) => (
+      {items.map((p) => (
         <span
-          key={f.id}
-          className="snowflake"
+          key={`${mode}-${p.id}`}
+          className={`particle particle-${mode}`}
           style={{
-            left: `${f.left}%`,
-            width: f.size,
-            height: f.size,
-            animationDelay: `${f.delay}s`,
-            animationDuration: `${f.duration}s`,
-            '--drift': `${f.drift}px`,
-            '--flake-opacity': f.opacity,
-            filter: f.size > 5 ? 'blur(0.6px)' : 'none',
+            left: `${p.left}%`,
+            top: p.top !== undefined ? `${p.top}%` : undefined,
+            width: p.width,
+            height: p.height,
+            animationDelay: `${p.delay}s`,
+            animationDuration: `${p.duration}s`,
+            '--drift': `${p.drift}px`,
+            '--p-opacity': p.opacity,
+            background: p.background,
+            boxShadow: p.glow ? `0 0 8px 2px ${p.glow}` : mode === 'orbs' ? `0 0 40px 10px ${p.background}55` : undefined,
+            filter: p.blur ? `blur(${p.blur}px)` : undefined,
           }}
         />
       ))}

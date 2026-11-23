@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import ThemeSettingsCard from './ThemeSettingsCard';
+import { useSiteTheme } from '../ThemeContext';
+import { resolveMenuMessage } from './menuShared';
 import {
   Container,
   Paper,
@@ -52,6 +55,7 @@ const API_URL = process.env.REACT_APP_API_URL || '/api';
 
 const AdminPage = () => {
   const navigate = useNavigate();
+  const { preset } = useSiteTheme();
   const [people, setPeople] = useState([]);
   const [newName, setNewName] = useState('');
   const [newWants, setNewWants] = useState('');
@@ -130,6 +134,7 @@ const AdminPage = () => {
       setIsAuthenticated(true);
       setShowPasswordDialog(false);
       sessionStorage.setItem('adminAuth', 'true');
+      sessionStorage.setItem('adminPass', password);
       fetchPeople();
       fetchMenu();
     } else {
@@ -420,7 +425,7 @@ const AdminPage = () => {
       const data = await response.json();
       setMenuItems(data.items || []);
       if (data.message) {
-        setMenuMessage(data.message);
+        setMenuMessage(resolveMenuMessage(data.message, preset));
       }
     } catch (error) {
       console.error('Error fetching menu:', error);
@@ -882,17 +887,19 @@ const AdminPage = () => {
         }}
       >
         <Box className="text-center mb-8">
-          <Typography sx={{ letterSpacing: 4, textTransform: 'uppercase', fontSize: '0.75rem', color: '#8a6a12', mb: 1 }}>
-            Wigilia 2026
+          <Typography sx={{ letterSpacing: 4, textTransform: 'uppercase', fontSize: '0.75rem', color: 'var(--gold-deep)', mb: 1 }}>
+            {preset.adminEyebrow}
           </Typography>
           <Typography
             variant="h3"
-            sx={{ fontFamily: 'var(--font-display)', fontWeight: 800, color: '#7d0c20', fontSize: { xs: '2rem', md: '2.6rem' } }}
+            sx={{ fontFamily: 'var(--font-display)', fontWeight: 800, color: 'var(--primary-dark)', fontSize: { xs: '2rem', md: '2.6rem' } }}
           >
             🔐 Panel administracyjny
           </Typography>
           <hr className="gold-rule" style={{ marginTop: 16 }} />
         </Box>
+
+        <ThemeSettingsCard />
 
         {/* Add Person Section */}
         <Card className="mb-6 bg-white shadow-lg border-2 border-red-200">
@@ -1118,7 +1125,7 @@ const AdminPage = () => {
 
       {/* Edit Person / Gift Dialog */}
       <Dialog open={!!editingPerson} onClose={closeEditPerson} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ background: 'linear-gradient(120deg, #7d0c20, #b3122f)', color: '#fff6e5', fontFamily: 'var(--font-display)', fontWeight: 700 }}>
+        <DialogTitle sx={{ background: 'linear-gradient(120deg, var(--primary-dark), var(--primary))', color: '#fff6e5', fontFamily: 'var(--font-display)', fontWeight: 700 }}>
           Edytuj osobę i prezent
         </DialogTitle>
         <DialogContent sx={{ pt: '24px !important' }}>
@@ -1244,7 +1251,7 @@ const AdminPage = () => {
       {/* Menu Management Section */}
       <Paper className="p-6 mt-8 bg-white shadow-lg border-2 border-green-200">
         <Typography variant="h5" className="mb-4 font-bold text-yellow-400" style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.5)' }}>
-          🎄 Zarządzanie Menu Wigilijnym 2026 🎄
+          {preset.emoji} Zarządzanie: {preset.menuTitle} {preset.emoji}
         </Typography>
 
         {/* Menu Message Editor */}

@@ -1,23 +1,25 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useSiteTheme } from '../ThemeContext';
 
 const PageTitle = () => {
   const location = useLocation();
+  const { preset } = useSiteTheme();
 
   useEffect(() => {
     const p = location.pathname;
-    let title = 'Wigilia 2026 🎄';
+    let title = preset.siteTitle;
 
     if (p === '/' || p === '/menu') {
-      title = 'Menu Wigilijne 2026 🎄';
+      title = preset.menuPageTitle;
     } else if (p.startsWith('/person/')) {
-      title = 'Twoje losowanie - Mikołajki 2026 🎁';
+      title = `Twoje losowanie - ${preset.adminEyebrow} ${preset.emoji}`;
     } else if (p === '/mikolajki') {
       title = 'Mikołajki 2026 - dołącz do losowania 🎁';
     } else if (p === '/admin') {
-      title = 'Panel Administracyjny - Wigilia 2026 🔐';
+      title = `Panel Administracyjny - ${preset.adminEyebrow} 🔐`;
     } else if (p === '/tvmenu') {
-      title = 'Menu TV - Wigilia 2026 📺';
+      title = `Menu TV - ${preset.adminEyebrow} 📺`;
     } else if (p === '/wiki') {
       title = 'Wiki - Ludzie Nikodema 📚';
     } else if (p === '/wakacje') {
@@ -25,7 +27,7 @@ const PageTitle = () => {
     }
 
     document.title = title;
-  }, [location.pathname]);
+  }, [location.pathname, preset]);
 
   return null;
 };

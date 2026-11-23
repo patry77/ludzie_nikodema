@@ -13,6 +13,7 @@ const MENU_FILE = path.join(__dirname, 'data', 'menu.json');
 const AIRBNB_FILE = path.join(__dirname, 'data', 'airbnb.json');
 const VOTES_FILE = path.join(__dirname, 'data', 'votes.json');
 const VOTERS_FILE = path.join(__dirname, 'data', 'voters.json');
+const SETTINGS_FILE = path.join(__dirname, 'data', 'settings.json');
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 
 app.use(cors());
@@ -110,6 +111,78 @@ function getClientId(req) {
   return `${ip}-${userAgent}`.substring(0, 100);
 }
 
+
+// ---------- Site settings (theme + countdown) ----------
+const THEME_IDS = ['swiateczny', 'sylwestrowy', 'urodzinowy', 'impreza', 'domyslny'];
+const DEFAULT_SETTINGS = {
+  theme: 'swiateczny',
+  showCountdown: true,
+  countdownDate: '',   // ISO date; empty = theme default
+  countdownLabel: ''   // empty = theme default
+};
+
+async function readSettings() {
+  try {
+    const raw = await fs.readFile(SETTINGS_FILE, 'utf8');
+    return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+  } catch (error) {
+    return { ...DEFAULT_SETTINGS };
+  }
+}
+
+// Same (client-side) admin password the panel uses; override with ADMIN_PASSWORD in .env
+function isAdminRequest(req) {
+  const expected = process.env.ADMIN_PASSWORD || 'admin123';
+  return req.headers['x-admin-password'] === expected;
+}
+
+app.get('/api/settings', async (req, res) => {
+  try {
+    res.json(await readSettings());
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/settings', async (req, res) => {
+  try {
+    if (!isAdminRequest(req)) {
+      return res.status(401).json({ error: 'Brak uprawnień. Zaloguj się ponownie do panelu.' });
+    }
+    const current = await readSettings();
+    const { theme, showCountdown, countdownDate, countdownLabel } = req.body || {};
+    const next = { ...current };
+
+    if (theme !== undefined) {
+      if (!THEME_IDS.includes(theme)) {
+        return res.status(400).json({ error: 'Nieznany motyw' });
+      }
+      next.theme = theme;
+    }
+    if (showCountdown !== undefined) {
+      next.showCountdown = !!showCountdown;
+    }
+    if (countdownDate !== undefined) {
+      if (countdownDate !== '' && (typeof countdownDate !== 'string' || Number.isNaN(Date.parse(countdownDate)))) {
+        return res.status(400).json({ error: 'Niepoprawna data odliczania' });
+      }
+      next.countdownDate = countdownDate;
+    }
+    if (countdownLabel !== undefined) {
+      if (typeof countdownLabel !== 'string' || countdownLabel.length > 80) {
+        return res.status(400).json({ error: 'Opis odliczania może mieć maks. 80 znaków' });
+      }
+      next.countdownLabel = countdownLabel.trim();
+    }
+
+    await fs.mkdir(path.dirname(SETTINGS_FILE), { recursive: true });
+    await fs.writeFile(SETTINGS_FILE, JSON.stringify(next, null, 2));
+    res.json(next);
+  } catch (error) {
+    console.error('Error saving settings:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // Get all people
 app.get('/api/people', async (req, res) => {

@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Container, Typography, Box, CircularProgress, Alert } from '@mui/material';
 import confetti from 'canvas-confetti';
+import { useSiteTheme } from '../ThemeContext';
 
 const API_URL = process.env.REACT_APP_API_URL || '/api';
 
 const PersonPage = () => {
+  const { preset } = useSiteTheme();
   const { linkId } = useParams();
   const [person, setPerson] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -36,7 +38,7 @@ const PersonPage = () => {
       particleCount: 120,
       spread: 80,
       origin: { y: 0.6 },
-      colors: ['#f4c95d', '#e0334f', '#2f9266', '#ffffff'],
+      colors: preset.colors.confetti,
     });
   };
 
@@ -61,7 +63,7 @@ const PersonPage = () => {
   return shell(
     <Box className="glass rise-in" sx={{ textAlign: 'center', p: { xs: 3, md: 6 } }}>
       <Typography sx={{ letterSpacing: 4, textTransform: 'uppercase', fontSize: '0.8rem', color: 'var(--gold)', mb: 1.5 }}>
-        Mikołajki · Wigilia 2026
+        {preset.drawEyebrow}
       </Typography>
       <Typography variant="h3" className="gold-text" sx={{ fontSize: { xs: '2rem', md: '2.8rem' }, mb: 4 }}>
         Cześć {person.name}! 🎅
@@ -80,7 +82,7 @@ const PersonPage = () => {
               className="glow-pulse"
               sx={{
                 cursor: 'pointer',
-                border: '2px solid #f4c95d',
+                border: '2px solid var(--gold)',
                 borderRadius: 999,
                 px: 5,
                 py: 1.75,
@@ -88,7 +90,7 @@ const PersonPage = () => {
                 fontWeight: 700,
                 fontSize: '1.1rem',
                 color: '#fff6e5',
-                background: 'linear-gradient(120deg, #7d0c20, #b3122f)',
+                background: 'linear-gradient(120deg, var(--primary-dark), var(--primary))',
                 '&:hover': { filter: 'brightness(1.12)' },
               }}
             >
@@ -107,7 +109,7 @@ const PersonPage = () => {
             </Typography>
 
             {person.assignedTo.wants ? (
-              <Box sx={{ textAlign: 'left', p: 3, borderRadius: '18px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(244,201,93,0.35)' }}>
+              <Box sx={{ textAlign: 'left', p: 3, borderRadius: '18px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(var(--accent-rgb),0.35)' }}>
                 <Typography sx={{ color: 'var(--gold)', fontWeight: 700, mb: 1 }}>💝 Ta osoba marzy o:</Typography>
                 <Typography sx={{ color: 'var(--ink)', fontStyle: 'italic', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
                   {person.assignedTo.wants}
@@ -121,7 +123,7 @@ const PersonPage = () => {
           </Box>
         )
       ) : (
-        <Box sx={{ p: 3, borderRadius: '18px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(244,201,93,0.35)' }}>
+        <Box sx={{ p: 3, borderRadius: '18px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(var(--accent-rgb),0.35)' }}>
           <Typography variant="h5" sx={{ color: 'var(--gold)', mb: 1 }}>
             ⏳ Losowanie jeszcze się nie odbyło
           </Typography>
