@@ -202,8 +202,13 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
 
   const fail = (res, status, message) => res.status(status).json({ error: message });
 
+  // Panel gier (/teleturniej/gry, prowadzacy, edytor pytan) jest domyslnie otwarty - strona jest prywatna, dla znajomych.
+  // Aby znowu wymagac hasla administratora, ustaw na serwerze GAMES_REQUIRE_PASSWORD=1.
+  const gamesOpen = process.env.GAMES_REQUIRE_PASSWORD !== '1';
+  const isHostRequest = (req) => gamesOpen || isAdminRequest(req);
+
   const requireAdmin = (req, res) => {
-    if (isAdminRequest(req)) return true;
+    if (isHostRequest(req)) return true;
     fail(res, 401, 'Brak uprawnień. Zaloguj się do panelu administracyjnego.');
     return false;
   };
@@ -215,7 +220,7 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
       const p = game.players.find((x) => x.token === token);
       if (p) return p;
     }
-    if (game.test && isAdminRequest(req) && asId) {
+    if (game.test && isHostRequest(req) && asId) {
       return game.players.find((x) => x.id === asId) || null;
     }
     return null;

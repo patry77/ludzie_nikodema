@@ -51,7 +51,7 @@ export const QuizNav = ({ current }) => {
 };
 
 // Wymaga sesji administratora (to samo logowanie co w panelu admina)
-const AdminGate = ({ children }) => {
+const AdminGateInner = ({ children }) => {
   const [ok, setOk] = useState(hasAdminSession());
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -91,6 +91,10 @@ const AdminGate = ({ children }) => {
     </Container>
   );
 };
+
+// Panel gier jest otwarty (strona prywatna). Zeby wrocic do hasla: GAMES_OPEN = false oraz GAMES_REQUIRE_PASSWORD=1 na serwerze.
+const GAMES_OPEN = true;
+const AdminGate = ({ children }) => (GAMES_OPEN ? children : <AdminGateInner>{children}</AdminGateInner>);
 
 const Loading = ({ text = 'Ładowanie...' }) => (
   <Typography sx={{ textAlign: 'center', color: 'var(--ink-dim)', py: 10, position: 'relative', zIndex: 20 }}>{text}</Typography>
