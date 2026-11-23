@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Box, Typography } from '@mui/material';
 import { youtubeEmbedUrl } from './quizApi';
+import { Avatar } from './Avatar';
 
 const BORDER_GOLD = 'linear-gradient(180deg, var(--gold-light), var(--gold-deep))';
 const BORDER_GREEN = 'linear-gradient(180deg, #b6ffc9, #19b857)';
@@ -52,12 +53,19 @@ export const HexBar = ({ selected = false, state, minHeight = 56, onClick, child
 };
 
 // Szanse: zapalone lampki (zlote) i zgaszone
-export const Lamps = ({ lives, max = 3, size = 14 }) => (
+export const Lamps = ({ lives, max = 3, size = 14 }) => {
+  // Animacja gasniecia lampki tylko po pierwszym renderze (nie przy odswiezeniu strony)
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    setReady(true);
+  }, []);
+  return (
   <Box sx={{ display: 'inline-flex', gap: `${Math.round(size / 3)}px` }} aria-label={`Szanse: ${lives} z ${max}`}>
     {Array.from({ length: max }, (_, i) => (
       <Box
-        key={i}
+        key={`${i}-${i < lives}`}
         component="span"
+        className={ready && i >= lives ? 'lamp-off-anim' : undefined}
         sx={{
           width: size,
           height: size,
@@ -69,14 +77,20 @@ export const Lamps = ({ lives, max = 3, size = 14 }) => (
       />
     ))}
   </Box>
-);
+  );
+};
 
 export const TimerBar = ({ left, total }) => {
   if (left === null || left === undefined) return null;
   const pct = Math.max(0, Math.min(100, (left / total) * 100));
   const urgent = left <= 5;
   return (
-    <Box sx={{ position: 'relative', height: 10, borderRadius: 999, background: 'rgba(255,255,255,0.12)', overflow: 'hidden' }} role="timer" aria-label={`Pozostało ${Math.ceil(left)} s`}>
+    <Box
+      className={urgent ? 'timer-urgent' : undefined}
+      sx={{ position: 'relative', height: urgent ? 14 : 10, borderRadius: 999, background: 'rgba(255,255,255,0.12)', overflow: 'hidden', transition: 'height .3s ease' }}
+      role="timer"
+      aria-label={`Pozostało ${Math.ceil(left)} s`}
+    >
       <Box
         sx={{
           width: `${pct}%`,
@@ -183,11 +197,12 @@ export const QuestionPanel = ({ current, size = 'phone', hostPreview = false, on
 };
 
 // Karta jednego stanowiska (podium)
-export const PodiumCard = ({ player, stage, compact = false, tv = false }) => {
+export const PodiumCard = ({ player, stage, compact = false, tv = false, code }) => {
   const active = player.isTarget || player.isBuzzer || player.isDesignating;
   const out = player.eliminated;
   return (
     <Box
+      className={out ? 'podium-out' : active ? 'podium-active' : undefined}
       sx={{
         position: 'relative',
         borderRadius: '16px',
@@ -201,23 +216,7 @@ export const PodiumCard = ({ player, stage, compact = false, tv = false }) => {
       }}
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Box
-          sx={{
-            width: tv ? 'clamp(26px, 2.4vw, 46px)' : 28,
-            height: tv ? 'clamp(26px, 2.4vw, 46px)' : 28,
-            flexShrink: 0,
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontWeight: 800,
-            fontSize: tv ? 'clamp(0.9rem, 1.3vw, 1.6rem)' : '0.95rem',
-            color: '#1a1205',
-            background: out ? '#888' : 'linear-gradient(180deg, var(--gold-light), var(--gold-deep))',
-          }}
-        >
-          {player.seat}
-        </Box>
+        <Avatar code={code} player={player} size={tv ? 'clamp(36px, 3.4vw, 68px)' : compact ? 32 : 36} />
         <Typography noWrap sx={{ fontWeight: 700, fontSize: tv ? 'clamp(0.9rem, 1.4vw, 1.7rem)' : '0.95rem', textDecoration: out ? 'line-through' : 'none' }}>
           {player.name}
         </Typography>
@@ -225,7 +224,9 @@ export const PodiumCard = ({ player, stage, compact = false, tv = false }) => {
       <Box sx={{ mt: 0.75, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
         <Lamps lives={player.lives} size={tv ? 18 : 13} />
         {stage === 3 && (
-          <Typography sx={{ fontWeight: 800, color: 'var(--gold)', fontSize: tv ? 'clamp(0.9rem, 1.4vw, 1.7rem)' : '0.95rem' }}>{player.points} pkt</Typography>
+          <Typography sx={{ fontWeight: 800, color: 'var(--gold)', fontSize: tv ? 'clamp(0.9rem, 1.4vw, 1.7rem)' : '0.95rem' }}>
+            <span key={player.points} className="bump">{player.points}</span> pkt
+          </Typography>
         )}
       </Box>
       {(player.isHolder || player.isBuzzer || player.isDesignating) && (

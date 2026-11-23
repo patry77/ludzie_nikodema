@@ -664,6 +664,8 @@ function playerView(game, p) {
     points: p.points,
     eliminated: p.eliminated,
     isBot: p.isBot,
+    hasPhoto: !!p.photoV,
+    photoV: p.photoV || 0,
     isHolder:
       (game.stage === 2 && game.s2 && game.s2.holderId === p.id) || (game.stage === 3 && game.s3 && game.s3.holderId === p.id),
     isTarget: !!(c && c.kind === 'single' && c.targetId === p.id && c.status !== 'revealed'),

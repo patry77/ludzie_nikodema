@@ -14,8 +14,10 @@ const JOIN_LIMIT_PER_10_MIN = 40;
 
 module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestions, dataDir }) {
   const FILE = path.join(dataDir, 'games.json');
+  const PHOTO_DIR = path.join(dataDir, 'game-photos');
   const games = new Map();
   const joinAttempts = new Map();
+  const photoLimits = new Map();
   let saveTimer = null;
 
   // ---------- Zapis / odczyt ----------
@@ -44,12 +46,28 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
     }, 800);
   }
 
+  // Zdjecia uczestnikow: osobne pliki (nie trafiaja do stanu gry); kasowane razem z gra
+  const photoPath = (code, playerId) => path.join(PHOTO_DIR, `${code}_${String(playerId).replace(/[^a-f0-9-]/gi, '')}.jpg`);
+
+  function deletePhotos(code) {
+    try {
+      for (const f of fs.readdirSync(PHOTO_DIR)) {
+        if (f.startsWith(`${code}_`)) fs.unlinkSync(path.join(PHOTO_DIR, f));
+      }
+    } catch (e) {
+      /* brak katalogu = brak zdjec */
+    }
+  }
+
   function cleanup() {
     const now = Date.now();
     for (const [code, g] of games) {
       const age = now - (g.finishedAt || g.createdAt);
       const limit = g.status === 'finished' ? 3 * 864e5 : g.test ? 12 * 36e5 : 2 * 864e5;
-      if (age > limit) games.delete(code);
+      if (age > limit) {
+        games.delete(code);
+        deletePhotos(code);
+      }
     }
     saveSoon();
   }
@@ -220,6 +238,7 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
     const g = getGame(req.params.code);
     if (!g) return fail(res, 404, 'Nie znaleziono gry');
     games.delete(g.code);
+    deletePhotos(g.code);
     saveSoon();
     res.json({ success: true });
   });
@@ -325,6 +344,17 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
     }
   });
 
+  // Zdjecie uczestnika (publiczne po kodzie gry i id gracza; adres zawiera numer wersji, wiec przegladarka je cache'uje)
+  app.get('/api/games/:code/photo/:playerId', (req, res) => {
+    const g = getGame(req.params.code);
+    if (!g || !g.players.some((p) => p.id === req.params.playerId && p.photoV)) return res.status(404).end();
+    fs.readFile(photoPath(g.code, req.params.playerId), (err, buf) => {
+      if (err) return res.status(404).end();
+      res.set({ 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff' });
+      res.send(buf);
+    });
+  });
+
   // Akcje uczestnika (telefon)
   app.post('/api/games/:code/player', (req, res) => {
     const g = getGame(req.params.code);
@@ -343,6 +373,31 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
           break;
         case 'designate':
           engine.designate(g, player.id, body.targetId, now);
+          break;
+        case 'photo': {
+          const photo = typeof body.photo === 'string' ? body.photo : '';
+          if (photo.length > 600000) throw new Error('Zdjęcie jest za duże');
+          const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/]+={0,2})$/.exec(photo);
+          if (!m) throw new Error('Nieprawidłowe zdjęcie (wymagany format JPEG)');
+          const buf = Buffer.from(m[1], 'base64');
+          if (buf.length < 200 || buf.length > 300 * 1024) throw new Error('Zdjęcie ma niepoprawny rozmiar');
+          if (buf[0] !== 0xff || buf[1] !== 0xd8 || buf[2] !== 0xff) throw new Error('To nie jest plik JPEG');
+          const rec = (photoLimits.get(player.id) || []).filter((t) => now - t < 60 * 1000);
+          if (rec.length >= 8) throw new Error('Za dużo zmian zdjęcia. Spróbuj za minutę.');
+          rec.push(now);
+          photoLimits.set(player.id, rec);
+          fs.mkdirSync(PHOTO_DIR, { recursive: true });
+          fs.writeFileSync(photoPath(g.code, player.id), buf);
+          player.photoV = (player.photoV || 0) + 1;
+          break;
+        }
+        case 'removePhoto':
+          try {
+            fs.unlinkSync(photoPath(g.code, player.id));
+          } catch (e) {
+            /* nie bylo zdjecia */
+          }
+          player.photoV = 0;
           break;
         default:
           throw new Error('Nieznana akcja gracza');

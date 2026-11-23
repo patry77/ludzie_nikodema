@@ -244,7 +244,7 @@ const GameHost = ({ state, offsetRef, act, busy, error, onResetError }) => {
           <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.25 }}>
             {state.players.map((p) => (
               <Box key={p.id} sx={{ position: 'relative' }}>
-                <PodiumCard player={p} stage={state.stage} compact />
+                <PodiumCard player={p} stage={state.stage} compact code={state.code} />
                 {state.status === 'lobby' && (
                   <Button size="small" onClick={() => act('kick', { playerId: p.id })} disabled={busy} sx={{ position: 'absolute', right: 2, bottom: 2, minWidth: 0, px: 1, color: '#ff9b9b', fontSize: '0.7rem' }}>
                     usuń

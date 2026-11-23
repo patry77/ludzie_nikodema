@@ -3,6 +3,8 @@ import { Alert, Box, Container, InputBase, Typography } from '@mui/material';
 import confetti from 'canvas-confetti';
 import { useSiteTheme } from '../ThemeContext';
 import { QuizNav } from '../quiz/QuizPages';
+import StageBackdrop from '../quiz/StageBackdrop';
+import MarqueeSign from '../quiz/MarqueeSign';
 
 const API_URL = process.env.REACT_APP_API_URL || '/api';
 const LETTERS = ['a', 'b', 'c', 'd'];
@@ -166,47 +168,12 @@ const TeleturniejPage = () => {
 
   return (
     <Box sx={{ position: 'relative', minHeight: 'calc(100vh - 60px)' }}>
-      {/* Reflektory sceny (tlo) */}
-      <Box aria-hidden="true" sx={{ position: 'fixed', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
-        <div className="stage-rays" />
-        <div className="stage-beam" style={{ left: '-8vw', '--beam-from': '-18deg', '--beam-to': '14deg', '--beam-color': 'rgba(96,165,250,0.34)' }} />
-        <div className="stage-beam" style={{ left: '30vw', '--beam-from': '16deg', '--beam-to': '-16deg', '--beam-color': 'rgba(255,210,63,0.26)', animationDuration: '11s' }} />
-        <div className="stage-beam" style={{ right: '-8vw', '--beam-from': '18deg', '--beam-to': '-12deg', '--beam-color': 'rgba(244,114,182,0.28)', animationDuration: '8s' }} />
-      </Box>
+      <StageBackdrop variant="soft" />
 
       <Container maxWidth="md" sx={{ position: 'relative', zIndex: 20, py: { xs: 4, md: 6 } }}>
         <QuizNav current="pytania" />
 
-        {/* Szyld */}
-        <Box className="rise-in" sx={{ textAlign: 'center', mb: { xs: 4, md: 5 } }}>
-          <Box
-            sx={{
-              display: 'inline-block',
-              width: '100%',
-              maxWidth: 640,
-              borderRadius: '18px',
-              overflow: 'hidden',
-              border: '3px solid var(--gold)',
-              background: 'linear-gradient(180deg, #0b1a73, #050f46)',
-              boxShadow: '0 0 0 3px #050826, 0 0 40px rgba(var(--accent-rgb), 0.45)',
-            }}
-          >
-            <div className="marquee-lights" />
-            <Box sx={{ px: 2, py: { xs: 2, sm: 3 } }}>
-              <Typography sx={{ color: 'var(--primary-light)', fontWeight: 800, letterSpacing: 6, fontSize: { xs: '0.7rem', sm: '0.85rem' }, textTransform: 'uppercase' }}>
-                ❓ Dodaj pytanie do puli ❓
-              </Typography>
-              <Typography
-                component="h1"
-                className="gold-text neon-title"
-                sx={{ fontFamily: 'var(--font-display)', fontWeight: 800, letterSpacing: { xs: 2, sm: 5 }, lineHeight: 1.05, fontSize: { xs: '2.3rem', sm: '3.6rem', md: '4.2rem' } }}
-              >
-                TELETURNIEJ
-              </Typography>
-            </Box>
-            <div className="marquee-lights alt" />
-          </Box>
-        </Box>
+        <MarqueeSign kicker="❓ Dodaj pytanie do puli ❓" title="TELETURNIEJ" sx={{ mb: { xs: 4, md: 5 } }} />
 
         <Box component="form" onSubmit={submit} noValidate className="rise-in" sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           {/* Format pytania */}

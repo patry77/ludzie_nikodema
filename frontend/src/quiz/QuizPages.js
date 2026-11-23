@@ -5,6 +5,9 @@ import { SOUND_LIST, isAudioUnlocked, playSound, setMasterVolume, unlockAudio } 
 import GameTv from './GameTv';
 import GameHost from './GameHost';
 import GamePlayer from './GamePlayer';
+import StageBackdrop from './StageBackdrop';
+import MarqueeSign from './MarqueeSign';
+import { Avatar, PhotoPicker } from './Avatar';
 import { HexBar } from './QuizBits';
 import { api, clearStoredPlayer, getStoredPlayer, hasAdminSession, setStoredPlayer, useGameState } from './quizApi';
 
@@ -73,7 +76,8 @@ const AdminGate = ({ children }) => {
 
   return (
     <Container maxWidth="xs" sx={{ py: 8, position: 'relative', zIndex: 20 }}>
-      <Box component="form" onSubmit={submit} className="glass" sx={{ p: 4, display: 'grid', gap: 2 }}>
+      <StageBackdrop variant="soft" />
+      <Box component="form" onSubmit={submit} className="glass pop-in" sx={{ p: 4, display: 'grid', gap: 2 }}>
         <Typography variant="h5" sx={{ color: 'var(--gold)' }}>🔐 Panel prowadzącego</Typography>
         <Typography sx={{ color: 'var(--ink-dim)' }}>Tę stronę obsługuje prowadzący – podaj hasło administratora.</Typography>
         <TextField type="password" label="Hasło" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} sx={fieldSx} error={!!error} helperText={error || ' '} />
@@ -274,11 +278,8 @@ export const QuizHubPage = () => {
   return (
     <AdminGate>
       <Container maxWidth="md" sx={{ py: { xs: 4, md: 6 }, position: 'relative', zIndex: 20 }}>
-        <Box sx={{ textAlign: 'center', mb: 3 }}>
-          <Typography component="h1" className="gold-text neon-title" sx={{ fontFamily: 'var(--font-display)', fontWeight: 800, letterSpacing: { xs: 2, sm: 5 }, fontSize: { xs: '2.2rem', sm: '3.4rem' } }}>
-            TELETURNIEJE
-          </Typography>
-        </Box>
+        <StageBackdrop variant="soft" />
+        <MarqueeSign kicker="🎮 Wybierz format" title="TELETURNIEJE" sx={{ mb: 3 }} />
         <QuizNav current="gry" />
         <FormatCard onCreated={() => setReloadKey((k) => k + 1)} />
         <GamesList reloadKey={reloadKey} />
@@ -319,6 +320,7 @@ const HostInner = ({ code }) => {
   if (!state) return <Loading />;
   return (
     <Container maxWidth="xl" sx={{ py: { xs: 3, md: 5 }, position: 'relative', zIndex: 20 }}>
+      <StageBackdrop variant="soft" />
       <GameHost state={state} offsetRef={offsetRef} act={act} busy={busy} error={error} onResetError={() => setError('')} />
     </Container>
   );
@@ -341,6 +343,7 @@ export const PlayerPage = () => {
   const [name, setName] = useState('');
   const [joinError, setJoinError] = useState('');
   const [joining, setJoining] = useState(false);
+  const [photo, setPhoto] = useState(null);
 
   const join = async (e) => {
     e.preventDefault();
@@ -353,6 +356,10 @@ export const PlayerPage = () => {
       return;
     }
     const player = { playerId: res.data.playerId, token: res.data.token, name: res.data.name, seat: res.data.seat };
+    if (photo) {
+      // zdjecie wybrane przed dolaczeniem - wysylamy zaraz po otrzymaniu tokenu
+      await api(`/games/${code}/player`, { method: 'POST', body: { token: player.token, action: 'photo', photo } });
+    }
     setStoredPlayer(code, player);
     setStored(player);
   };
@@ -360,10 +367,16 @@ export const PlayerPage = () => {
   if (!stored) {
     return (
       <Container maxWidth="xs" sx={{ py: 6, position: 'relative', zIndex: 20 }}>
-        <Box component="form" onSubmit={join} className="glass" sx={{ p: 4, display: 'grid', gap: 2.5, textAlign: 'center' }}>
+        <StageBackdrop variant="soft" />
+        <Box component="form" onSubmit={join} className="glass pop-in" sx={{ p: 4, display: 'grid', gap: 2.5, textAlign: 'center' }}>
           <Typography sx={{ fontSize: '2.6rem' }} aria-hidden="true">🎤</Typography>
           <Typography variant="h4" className="gold-text">1 z 10</Typography>
           <Typography sx={{ color: 'var(--ink-dim)' }}>Gra <strong style={{ color: 'var(--gold)', letterSpacing: 3 }}>{code}</strong> – wpisz swoje imię, żeby dołączyć.</Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+            <Avatar src={photo} size={96} player={photo ? null : { seat: '?', name: name || 'gracz' }} />
+          </Box>
+          <PhotoPicker hasPhoto={!!photo} onPick={async (d) => setPhoto(d)} onRemove={() => setPhoto(null)} compact />
+          <Typography variant="body2" sx={{ color: 'var(--ink-dim)', mt: -1 }}>Zdjęcie jest opcjonalne – zobaczą je wszyscy na ekranie TV.</Typography>
           <TextField value={name} onChange={(e) => setName(e.target.value)} label="Twoje imię" autoFocus inputProps={{ maxLength: 24 }} sx={fieldSx} error={!!joinError} helperText={joinError || ' '} />
           <Button type="submit" variant="contained" size="large" disabled={joining || !name.trim()}>{joining ? 'Dołączanie...' : 'Dołączam!'}</Button>
         </Box>
@@ -420,8 +433,9 @@ export const JoinCodePage = () => {
 
   return (
     <Container maxWidth="xs" sx={{ py: 6, position: 'relative', zIndex: 20 }}>
+      <StageBackdrop variant="soft" />
       <QuizNav current="dolacz" />
-      <Box component="form" onSubmit={go} className="glass" sx={{ p: 4, display: 'grid', gap: 2.5, textAlign: 'center' }}>
+      <Box component="form" onSubmit={go} className="glass pop-in" sx={{ p: 4, display: 'grid', gap: 2.5, textAlign: 'center' }}>
         <Typography sx={{ fontSize: '2.6rem' }} aria-hidden="true">📱</Typography>
         <Typography variant="h5" sx={{ color: 'var(--gold)' }}>Dołącz do gry</Typography>
         <Typography sx={{ color: 'var(--ink-dim)' }}>Wpisz 4-literowy kod widoczny na ekranie telewizora.</Typography>
@@ -476,6 +490,7 @@ const TestInner = ({ code }) => {
 
   return (
     <Container maxWidth={false} sx={{ py: 3, px: { xs: 1.5, md: 3 }, position: 'relative', zIndex: 20 }}>
+      <StageBackdrop variant="soft" />
       <Box className="glass" sx={{ p: 2, mb: 3, display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
         <Typography sx={{ fontWeight: 800, color: 'var(--gold)', fontSize: '1.1rem' }}>🧪 Konsola trybu testowego · kod {code}</Typography>
         <Typography sx={{ color: 'var(--ink-dim)', flex: 1, minWidth: 260, fontSize: '0.9rem' }}>

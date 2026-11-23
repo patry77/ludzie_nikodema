@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Alert, Box, Button, TextField, Typography } from '@mui/material';
 import { HexBar, Lamps, QuestionPanel, TimerBar, describeNow, playerName } from './QuizBits';
 import { useSecondsLeft } from './quizApi';
+import StageBackdrop from './StageBackdrop';
+import { Avatar, PhotoPicker } from './Avatar';
 import { SoundControl, useQuizSounds, useSoundSettings } from './useQuizSounds';
 
 const BigButton = ({ children, color = 'gold', ...props }) => (
@@ -26,7 +28,7 @@ const BigButton = ({ children, color = 'gold', ...props }) => (
       '&:active': { transform: 'scale(0.98)' },
       '&:disabled': { opacity: 0.5, cursor: 'default' },
     }}
-    className={props.pulse ? 'glow-pulse' : undefined}
+    className={[props.className, props.pulse ? 'glow-pulse' : null].filter(Boolean).join(' ') || undefined}
   >
     {children}
   </Box>
@@ -62,15 +64,18 @@ const GamePlayer = ({ state, offsetRef, act, busy, error, onResetError }) => {
   useQuizSounds(state, { role: 'player', enabled: sound.active });
 
   const send = (value) => act('answer', { value });
+  const savePhoto = async (photo) => {
+    await act('photo', { photo });
+  };
+  const removePhoto = () => act('removePhoto');
 
   return (
     <Box sx={{ maxWidth: 560, mx: 'auto', px: 2, py: 3, display: 'flex', flexDirection: 'column', gap: 2.5, position: 'relative', zIndex: 20 }}>
+      <StageBackdrop variant="soft" />
       {/* Karta gracza */}
       <Box className="glass" sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
-          <Box sx={{ width: 46, height: 46, flexShrink: 0, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '1.4rem', color: '#1a1205', background: 'linear-gradient(180deg, var(--gold-light), var(--gold-deep))' }}>
-            {you.seat}
-          </Box>
+          <Avatar code={state.code} player={you} size={52} />
           <Box sx={{ minWidth: 0 }}>
             <Typography noWrap sx={{ fontWeight: 800, fontSize: '1.15rem' }}>{you.name}</Typography>
             <Typography sx={{ color: 'var(--ink-dim)', fontSize: '0.8rem' }}>1 z 10 · kod {state.code}{state.test && ' · test'}</Typography>
@@ -89,11 +94,17 @@ const GamePlayer = ({ state, offsetRef, act, busy, error, onResetError }) => {
 
       {/* Poczekalnia */}
       {state.status === 'lobby' && (
-        <Box className="glass" sx={{ p: 3, textAlign: 'center' }}>
-          <Typography sx={{ fontSize: '2.4rem' }} aria-hidden="true">🎤</Typography>
+        <Box className="glass pop-in" sx={{ p: 3, textAlign: 'center' }}>
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1.5 }}>
+            <Avatar code={state.code} player={you} size={110} />
+          </Box>
           <Typography variant="h5" sx={{ color: 'var(--gold)', mb: 1 }}>Jesteś w grze!</Typography>
           <Typography sx={{ color: 'var(--ink-dim)' }}>Twoje stanowisko: <strong style={{ color: 'var(--ink)' }}>{you.seat}</strong>. Czekaj, aż prowadzący rozpocznie grę.</Typography>
-          <Typography sx={{ mt: 2, color: 'var(--ink-dim)', fontSize: '0.9rem' }}>
+          <Box sx={{ mt: 2.5 }}>
+            <Typography sx={{ color: 'var(--ink-dim)', fontSize: '0.85rem', mb: 1 }}>Dodaj swoje zdjęcie – zobaczą je wszyscy na ekranie TV:</Typography>
+            <PhotoPicker hasPhoto={you.hasPhoto} onPick={savePhoto} onRemove={removePhoto} busy={busy} />
+          </Box>
+          <Typography sx={{ mt: 2.5, color: 'var(--ink-dim)', fontSize: '0.9rem' }}>
             W grze: {state.players.map((p) => `${p.seat}. ${p.name}`).join(' · ')}
           </Typography>
         </Box>
@@ -101,8 +112,8 @@ const GamePlayer = ({ state, offsetRef, act, busy, error, onResetError }) => {
 
       {/* Koniec */}
       {state.status === 'finished' && state.result && (
-        <Box className="glass" sx={{ p: 3, textAlign: 'center' }}>
-          <Typography sx={{ fontSize: '3rem' }} aria-hidden="true">{state.result.winnerIds.includes(you.id) ? '🏆' : '👏'}</Typography>
+        <Box className="glass pop-in" sx={{ p: 3, textAlign: 'center' }}>
+          <Typography className="bounce" sx={{ fontSize: '3rem' }} aria-hidden="true">{state.result.winnerIds.includes(you.id) ? '🏆' : '👏'}</Typography>
           <Typography variant="h4" className="gold-text" sx={{ mb: 1 }}>
             {state.result.winnerIds.includes(you.id) ? 'Wygrałeś(aś)!' : 'Koniec gry'}
           </Typography>
@@ -122,7 +133,7 @@ const GamePlayer = ({ state, offsetRef, act, busy, error, onResetError }) => {
             <Alert severity="warning" icon={false}>Odpadłeś(aś) z gry – ale możesz dalej śledzić pytania. 😉</Alert>
           )}
 
-          <Typography sx={{ textAlign: 'center', fontWeight: 800, fontSize: '1.2rem', color: iAmTarget || iAmBuzzer || iDesignate ? 'var(--gold)' : 'var(--ink)' }}>
+          <Typography className={iAmTarget || iAmBuzzer || iDesignate ? 'turn-pulse' : undefined} sx={{ textAlign: 'center', fontWeight: 800, fontSize: '1.2rem', color: iAmTarget || iAmBuzzer || iDesignate ? 'var(--gold)' : 'var(--ink)' }}>
             {iAmTarget && 'TWOJA KOLEJ – odpowiadasz!'}
             {iAmBuzzer && 'Zgłosiłeś(aś) się – odpowiadasz!'}
             {iDesignate && 'Wskaż, kto odpowiada'}
@@ -159,6 +170,7 @@ const GamePlayer = ({ state, offsetRef, act, busy, error, onResetError }) => {
           )}
 
           {c && (
+            <Box key={`${c.n}:${c.question.id}`} className="pop-in">
             <QuestionPanel
               current={c}
               size="phone"
@@ -167,6 +179,7 @@ const GamePlayer = ({ state, offsetRef, act, busy, error, onResetError }) => {
               pickDisabled={busy}
               embedMedia
             />
+            </Box>
           )}
 
           {/* Odpowiedz: ABCD */}
@@ -197,7 +210,7 @@ const GamePlayer = ({ state, offsetRef, act, busy, error, onResetError }) => {
 
           {/* Zgloszenie w finale */}
           {canBuzz && (
-            <BigButton color="red" pulse onClick={() => act('buzz')} disabled={busy}>
+            <BigButton color="red" pulse className="buzz-ring" onClick={() => act('buzz')} disabled={busy}>
               ✋ Zgłaszam się!
             </BigButton>
           )}
@@ -211,7 +224,7 @@ const GamePlayer = ({ state, offsetRef, act, busy, error, onResetError }) => {
           )}
 
           {myResult !== undefined && (
-            <Box className="glass" sx={{ p: 3, textAlign: 'center', border: `2px solid ${myResult ? '#19b857' : '#d63a3a'}` }}>
+            <Box className={`glass pop-in ${myResult ? '' : 'shake'}`} sx={{ p: 3, textAlign: 'center', border: `2px solid ${myResult ? '#19b857' : '#d63a3a'}` }}>
               <Typography sx={{ fontSize: '2.6rem' }} aria-hidden="true">{myResult ? '✅' : '❌'}</Typography>
               <Typography variant="h5" sx={{ color: myResult ? '#7be3a2' : '#ff9b9b' }}>
                 {myResult ? 'Dobra odpowiedź!' : c.answer ? 'Zła odpowiedź' : 'Brak odpowiedzi'}
