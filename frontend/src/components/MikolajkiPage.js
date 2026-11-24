@@ -122,8 +122,7 @@ const MikolajkiPage = () => {
               onChange={(e) => setWants(e.target.value)}
               multiline
               rows={4}
-              inputProps={{ maxLength: 500 }}
-              helperText={`${wants.length}/500 – to zobaczy tylko osoba, która Cię wylosuje.`}
+              helperText="Pisz ile chcesz – to zobaczy tylko osoba, która Cię wylosuje."
               fullWidth
               sx={fieldSx}
             />

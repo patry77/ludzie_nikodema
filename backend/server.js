@@ -780,8 +780,9 @@ app.post('/api/mikolajki/join', async (req, res) => {
     if (name.length > 60) {
       return res.status(400).json({ error: 'Imię jest za długie (max 60 znaków).' });
     }
-    if (wants.length > 500) {
-      return res.status(400).json({ error: 'Opis prezentu jest za długi (max 500 znaków).' });
+    // brak limitu dlugosci zyczen (tylko ogromny bezpiecznik, zeby nikt nie zapchal pliku danych)
+    if (wants.length > 20000) {
+      return res.status(400).json({ error: 'Opis prezentu jest absurdalnie długi.' });
     }
     if (email && !isValidEmail(email)) {
       return res.status(400).json({ error: 'Niepoprawny format adresu email.' });
