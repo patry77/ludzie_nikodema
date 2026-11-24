@@ -784,7 +784,10 @@ app.post('/api/mikolajki/join', async (req, res) => {
     if (wants.length > 20000) {
       return res.status(400).json({ error: 'Opis prezentu jest absurdalnie długi.' });
     }
-    if (email && !isValidEmail(email)) {
+    if (!email) {
+      return res.status(400).json({ error: 'Podaj adres email.' });
+    }
+    if (!isValidEmail(email)) {
       return res.status(400).json({ error: 'Niepoprawny format adresu email.' });
     }
 

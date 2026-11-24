@@ -38,6 +38,10 @@ const MikolajkiPage = () => {
       setError('Podaj swoje imię.');
       return;
     }
+    if (!email.trim() || !/^\S+@\S+\.\S+$/.test(email.trim())) {
+      setError('Podaj poprawny adres email.');
+      return;
+    }
     try {
       setSending(true);
       const response = await fetch(`${API_URL}/mikolajki/join`, {
@@ -86,7 +90,7 @@ const MikolajkiPage = () => {
               Jesteś na liście, {done.name}! 🎄
             </Typography>
             <Typography sx={{ color: 'var(--ink-dim)', mb: 3 }}>
-              Gdy losowanie się odbędzie, dostaniesz swój osobisty link (mailem, jeśli podałeś/aś adres).
+              Gdy losowanie się odbędzie, dostaniesz swój osobisty link mailem.
             </Typography>
             <Button onClick={reset} variant="outlined" sx={{ color: 'var(--gold)', borderColor: 'rgba(var(--accent-rgb),0.6)' }}>
               Dodaj kolejną osobę
@@ -106,7 +110,7 @@ const MikolajkiPage = () => {
             />
 
             <TextField
-              label="Email (opcjonalnie)"
+              label="Email *"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -130,7 +134,7 @@ const MikolajkiPage = () => {
             <Button
               type="submit"
               size="large"
-              disabled={sending || !name.trim()}
+              disabled={sending || !name.trim() || !email.trim()}
               sx={{
                 mt: 1,
                 py: 1.5,
