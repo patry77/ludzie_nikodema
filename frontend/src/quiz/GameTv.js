@@ -165,7 +165,7 @@ const GameTv = ({ state, offsetRef }) => {
   const { preset } = useSiteTheme();
   const confettiColors = preset.colors.confetti;
   const c = state.current;
-  const showTimer = c && (c.status === 'asking' || c.status === 'answering');
+  const showTimer = c && !!c.deadline && (c.status === 'asking' || c.status === 'answering');
   const left = useSecondsLeft(showTimer ? c.deadline : null, offsetRef, state.pausedAt);
   const designLeft = useSecondsLeft(state.awaiting ? state.awaiting.deadline : null, offsetRef, state.pausedAt);
   const sound = useSoundSettings('tv', true);

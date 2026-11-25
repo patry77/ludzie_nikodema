@@ -157,7 +157,7 @@ const GameHost = ({ state, offsetRef, act, busy, error, onResetError }) => {
           <Panel title={`Pytanie ${c ? c.n : ''}`}>
             <Typography sx={{ fontWeight: 800, fontSize: '1.2rem', color: 'var(--gold)', mb: 1.5 }}>{describeNow(state)}</Typography>
 
-            {c && (c.status === 'asking' || c.status === 'answering') && <Box sx={{ mb: 2 }}><TimerBar left={left} total={total} /></Box>}
+            {c && !!c.deadline && (c.status === 'asking' || c.status === 'answering') && <Box sx={{ mb: 2 }}><TimerBar left={left} total={total} /></Box>}
 
             {c && (
               <>

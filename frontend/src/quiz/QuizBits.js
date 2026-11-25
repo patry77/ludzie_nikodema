@@ -209,6 +209,7 @@ export const QuestionPanel = ({ current, size = 'phone', hostPreview = false, on
   const correctLetter = current.correct ? current.correct.letter : null;
   const answeredLetter = current.answer && current.answer.value && q.typ === 'abcd' ? current.answer.value : null;
   const big = size === 'tv';
+  const videoRow = big && q.media === 'wideo' && !!q.link && !!youtubeEmbedUrl(q.link);
 
   return (
     <Box sx={big ? { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, height: '100%' } : undefined}>
@@ -218,6 +219,7 @@ export const QuestionPanel = ({ current, size = 'phone', hostPreview = false, on
         </Typography>
       </HexBar>
 
+      <Box sx={videoRow ? { display: 'flex', gap: 'clamp(8px, 1.4vw, 24px)', flex: 1, minHeight: 0, alignItems: 'stretch' } : { display: 'contents' }}>
       {q.link && big && youtubeEmbedUrl(q.link) ? (
         <TvMedia key={q.id} media={q.media} link={q.link} qid={q.id} mediaCmd={mediaCmd} start={q.start || 0} end={q.end || 0} />
       ) : q.link && size === 'phone' && youtubeEmbedUrl(q.link) ? (
@@ -229,7 +231,7 @@ export const QuestionPanel = ({ current, size = 'phone', hostPreview = false, on
       )}
 
       {q.typ === 'abcd' && q.options && (
-        <Box sx={{ mt: big ? 'clamp(6px, 1.2vh, 16px)' : 2, display: 'grid', gridTemplateColumns: { xs: '1fr', md: big ? '1fr 1fr' : '1fr' }, gap: big ? 'clamp(6px, 1vh, 12px)' : 1.25 }}>
+        <Box sx={{ mt: big ? 'clamp(6px, 1.2vh, 16px)' : 2, display: 'grid', gridTemplateColumns: { xs: '1fr', md: big && !videoRow ? '1fr 1fr' : '1fr' }, gap: big ? 'clamp(6px, 1vh, 12px)' : 1.25, ...(videoRow ? { width: 'min(40%, 620px)', flexShrink: 0, alignContent: 'center' } : {}) }}>
           {LETTERS.map((l) => {
             let state = 'default';
             if (revealed || hostPreview) {
@@ -263,6 +265,8 @@ export const QuestionPanel = ({ current, size = 'phone', hostPreview = false, on
           })}
         </Box>
       )}
+
+      </Box>
 
       {revealed && q.typ !== 'abcd' && current.correct && (
         <Box sx={{ mt: 2 }}>

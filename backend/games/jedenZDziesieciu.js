@@ -236,7 +236,8 @@ function startQuestion(game, kind, targetId, role, now) {
     targetId: targetId || null,
     status: 'asking', // asking | answering | judging | revealed
     startedAt: now,
-    deadline: now + (kind === 'single' ? cfg.answerSeconds : cfg.buzzSeconds) * 1000,
+    // ABCD: bez limitu czasu na odpowiedz (deadline = null); w finale nadal jest okno na zgloszenie sie
+    deadline: q.typ === 'abcd' && kind === 'single' ? null : now + (kind === 'single' ? cfg.answerSeconds : cfg.buzzSeconds) * 1000,
     buzzer: null,
     answer: null,
     suggestion: null,
@@ -398,10 +399,10 @@ function buzz(game, playerId, now) {
   if (game.status !== 'running' || !c || c.kind !== 'buzz' || c.status !== 'asking') throw new Error('Nie można się teraz zgłosić');
   const p = byId(game, playerId);
   if (!p || p.eliminated) throw new Error('Nie bierzesz udziału w tym pytaniu');
-  if (now > c.deadline) throw new Error('Czas na zgłoszenie minął');
+  if (c.deadline && now > c.deadline) throw new Error('Czas na zgłoszenie minął');
   c.buzzer = { playerId, at: now };
   c.status = 'answering';
-  c.deadline = now + game.config.answerSeconds * 1000;
+  c.deadline = c.q.typ === 'abcd' ? null : now + game.config.answerSeconds * 1000;
   addLog(game, `${p.name} zgłasza się do odpowiedzi`);
   // plan bota: czy i kiedy odpowie poprawnie
   if (p.isBot) {
@@ -649,7 +650,7 @@ function tick(game, now) {
   const c = game.current;
   if (c) {
     if (c.status === 'asking') {
-      if (now > c.deadline) {
+      if (c.deadline && now > c.deadline) {
         if (c.kind === 'single') {
           c.answer = null;
           reveal(game, false, now);
@@ -670,7 +671,7 @@ function tick(game, now) {
         }
       }
     } else if (c.status === 'answering') {
-      if (now > c.deadline) {
+      if (c.deadline && now > c.deadline) {
         c.answer = null;
         reveal(game, false, now);
         return true;

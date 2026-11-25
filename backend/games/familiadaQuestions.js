@@ -51,4 +51,8 @@ const FAMILIADA_SAMPLE_QUESTIONS = [
   q(40, 'Co ma każdy w kuchni?', [['LODÓWKĘ', 30], ['PIEKARNIK', 24], ['CZAJNIK', 18], ['ZLEW', 14], ['PATELNIĘ', 8], ['NOŻE', 6]]),
 ];
 
+// Do wbudowanej puli dolaczone sa tez smieszne pytania (familiadaFunny.js)
+const { FAMILIADA_FUNNY_QUESTIONS } = require('./familiadaFunny');
+FAMILIADA_SAMPLE_QUESTIONS.push(...FAMILIADA_FUNNY_QUESTIONS);
+
 module.exports = { FAMILIADA_SAMPLE_QUESTIONS };

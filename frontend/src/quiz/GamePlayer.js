@@ -52,7 +52,7 @@ const GamePlayer = ({ state, offsetRef, act, busy, error, onResetError }) => {
   const canBuzz = !!c && c.kind === 'buzz' && c.status === 'asking' && !you.eliminated;
   const iDesignate = !!state.awaiting && state.awaiting.byId === you.id;
 
-  const timerOn = c && (c.status === 'asking' || c.status === 'answering');
+  const timerOn = c && !!c.deadline && (c.status === 'asking' || c.status === 'answering');
   const left = useSecondsLeft(timerOn ? c.deadline : null, offsetRef, state.pausedAt);
   const total = c ? (c.kind === 'single' || c.status === 'answering' ? state.config.answerSeconds : state.config.buzzSeconds) : 0;
   const designLeft = useSecondsLeft(iDesignate ? state.awaiting.deadline : null, offsetRef, state.pausedAt);
