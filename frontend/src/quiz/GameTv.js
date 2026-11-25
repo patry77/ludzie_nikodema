@@ -275,7 +275,7 @@ const GameTv = ({ state, offsetRef }) => {
 
           {c && (
             <Box key={qKey} className={`pop-in ${revealedBad ? 'shake' : ''}`}>
-              <QuestionPanel current={c} size="tv" />
+              <QuestionPanel current={c} size="tv" mediaCmd={state.mediaCmd} />
             </Box>
           )}
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Box, Typography } from '@mui/material';
 import { youtubeEmbedUrl } from './quizApi';
 import { Avatar } from './Avatar';
@@ -103,6 +103,72 @@ export const TimerBar = ({ left, total }) => {
   );
 };
 
+// Odtwarzacz na TV: samoczynny start, bez tytulu (muzyka - zakryty caly obraz, wideo - zakryty pasek z tytulem),
+// sterowany z panelu prowadzacego (mediaCmd: play / pause / restart przez YouTube IFrame API).
+const ytCommand = (frame, func, args = []) => {
+  try {
+    frame.contentWindow.postMessage(JSON.stringify({ event: 'command', func, args }), '*');
+  } catch (e) {
+    /* ramka jeszcze niegotowa */
+  }
+};
+
+export const TvMedia = ({ media, link, qid, mediaCmd }) => {
+  const frameRef = useRef(null);
+  const lastN = useRef(mediaCmd ? mediaCmd.n : 0);
+  const emb = youtubeEmbedUrl(link, 'autoplay=1&controls=0&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&disablekb=1&fs=0&enablejsapi=1');
+  const isMusic = media !== 'wideo';
+
+  useEffect(() => {
+    if (!mediaCmd || mediaCmd.n === lastN.current) return;
+    lastN.current = mediaCmd.n;
+    if (mediaCmd.qid !== qid || !frameRef.current) return;
+    const f = frameRef.current;
+    if (mediaCmd.cmd === 'pause') ytCommand(f, 'pauseVideo');
+    else if (mediaCmd.cmd === 'play') ytCommand(f, 'playVideo');
+    else if (mediaCmd.cmd === 'restart') {
+      ytCommand(f, 'seekTo', [0, true]);
+      ytCommand(f, 'playVideo');
+    }
+  }, [mediaCmd, qid]);
+
+  if (!emb) return null;
+  return (
+    <Box sx={{ mt: 2, position: 'relative', paddingTop: '56.25%', borderRadius: '16px', overflow: 'hidden', border: '2px solid var(--gold)', maxWidth: 760, mx: 'auto', background: '#000' }}>
+      <iframe
+        ref={frameRef}
+        title="Multimedia do pytania"
+        src={emb}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 0, pointerEvents: 'none' }}
+        allow="autoplay; encrypted-media"
+      />
+      {isMusic ? (
+        <Box sx={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 50% 40%, #12206b, #050a2e)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 2 }}>
+          <Typography sx={{ fontSize: 'clamp(3rem, 8vw, 6rem)' }} aria-hidden="true">🎵</Typography>
+          <Typography sx={{ color: 'var(--gold)', fontWeight: 800, letterSpacing: 4, textTransform: 'uppercase' }}>Słuchajcie uważnie…</Typography>
+        </Box>
+      ) : (
+        <>
+          <Box sx={{ position: 'absolute', left: 0, right: 0, top: 0, height: '24%', background: '#000' }} />
+          <Box sx={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '12%', background: '#000' }} />
+        </>
+      )}
+    </Box>
+  );
+};
+
+const remoteBtn = { cursor: 'pointer', padding: '8px 16px', borderRadius: 999, border: '2px solid var(--gold)', background: 'linear-gradient(120deg, var(--primary-dark), var(--primary))', color: '#fff6e5', fontWeight: 700, font: 'inherit' };
+
+// Przyciski prowadzacego: odtwarzanie / pauza / od poczatku na ekranie TV
+export const MediaRemote = ({ media, act, busy }) => (
+  <Box sx={{ mt: 2, p: 1.5, borderRadius: '14px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(var(--accent-rgb),0.35)', display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+    <Typography sx={{ fontWeight: 700, color: 'var(--gold)', mr: 1 }}>{media === 'wideo' ? '🎬 Film na TV:' : '🎵 Utwór na TV:'}</Typography>
+    <button type="button" disabled={busy} onClick={() => act('media', { cmd: 'play' })} style={remoteBtn}>▶ Odtwórz</button>
+    <button type="button" disabled={busy} onClick={() => act('media', { cmd: 'pause' })} style={remoteBtn}>⏸ Pauza</button>
+    <button type="button" disabled={busy} onClick={() => act('media', { cmd: 'restart' })} style={remoteBtn}>↺ Od początku</button>
+  </Box>
+);
+
 // Osadzenie filmu YouTube albo link do innych serwisow
 export const MediaBlock = ({ media, link, size = 'phone', embed = true }) => {
   if (!link) return null;
@@ -133,7 +199,7 @@ export const MediaBlock = ({ media, link, size = 'phone', embed = true }) => {
 const LETTERS = ['a', 'b', 'c', 'd'];
 
 // Pytanie z opcjami. `current.correct` jest obecne tylko gdy wolno je pokazac (prowadzacy / po ujawnieniu).
-export const QuestionPanel = ({ current, size = 'phone', hostPreview = false, onPick, pickDisabled, pickedLetter, embedMedia = true }) => {
+export const QuestionPanel = ({ current, size = 'phone', hostPreview = false, onPick, pickDisabled, pickedLetter, embedMedia = true, mediaCmd = null }) => {
   const q = current.question;
   const revealed = current.status === 'revealed';
   const correctLetter = current.correct ? current.correct.letter : null;
@@ -148,7 +214,15 @@ export const QuestionPanel = ({ current, size = 'phone', hostPreview = false, on
         </Typography>
       </HexBar>
 
-      <MediaBlock media={q.media} link={q.link} size={size} embed={embedMedia} />
+      {q.link && big && youtubeEmbedUrl(q.link) ? (
+        <TvMedia key={q.id} media={q.media} link={q.link} qid={q.id} mediaCmd={mediaCmd} />
+      ) : q.link && size === 'phone' && youtubeEmbedUrl(q.link) ? (
+        <Box sx={{ mt: 2, textAlign: 'center', color: 'var(--gold)', fontWeight: 700 }}>
+          {q.media === 'wideo' ? '🎬 Film leci na ekranie TV' : '🎵 Utwór leci na ekranie TV'}
+        </Box>
+      ) : (
+        <MediaBlock media={q.media} link={q.link} size={size} embed={embedMedia} />
+      )}
 
       {q.typ === 'abcd' && q.options && (
         <Box sx={{ mt: 2, display: 'grid', gridTemplateColumns: { xs: '1fr', md: big ? '1fr 1fr' : '1fr' }, gap: 1.25 }}>

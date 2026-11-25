@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Alert, Box, Button, MenuItem, TextField, Typography } from '@mui/material';
-import { PodiumCard, QuestionPanel, TimerBar, describeNow, playerName, stageHint } from './QuizBits';
+import { MediaRemote, PodiumCard, QuestionPanel, TimerBar, describeNow, playerName, stageHint } from './QuizBits';
 import { useSecondsLeft } from './quizApi';
 import { IntroHost } from './IntroCam';
 import { SoundControl, useQuizSounds, useSoundSettings } from './useQuizSounds';
@@ -161,7 +161,8 @@ const GameHost = ({ state, offsetRef, act, busy, error, onResetError }) => {
 
             {c && (
               <>
-                <QuestionPanel current={c} size="host" hostPreview />
+                <QuestionPanel current={c} size="host" hostPreview embedMedia={false} />
+                {c.question.link && <MediaRemote media={c.question.media} act={act} busy={busy} />}
                 {c.question.typ !== 'abcd' && c.correct && (
                   <Alert severity="info" sx={{ mt: 2 }} icon={false}>
                     <strong>Poprawna odpowiedź (tylko dla prowadzącego):</strong> {c.correct.text}

@@ -121,14 +121,14 @@ export function useSecondsLeft(deadline, offsetRef, frozenAt) {
   return left;
 }
 
-export const youtubeEmbedUrl = (link) => {
+export const youtubeEmbedUrl = (link, params = 'rel=0') => {
   if (!link) return null;
   try {
     const u = new URL(link);
     let id = null;
     if (u.hostname.includes('youtu.be')) id = u.pathname.slice(1);
     else if (u.hostname.includes('youtube.com')) id = u.searchParams.get('v') || (u.pathname.startsWith('/embed/') ? u.pathname.split('/')[2] : null);
-    return id && /^[\w-]{6,20}$/.test(id) ? `https://www.youtube.com/embed/${id}?rel=0` : null;
+    return id && /^[\w-]{6,20}$/.test(id) ? `https://www.youtube.com/embed/${id}?${params}` : null;
   } catch (e) {
     return null;
   }

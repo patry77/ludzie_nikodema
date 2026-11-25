@@ -465,6 +465,7 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
       res.set('Cache-Control', 'no-store');
       const view = engineOf(g).viewFor(g, role, player, now);
       view.intro = introView(g);
+      view.mediaCmd = g.mediaCmd || null;
       res.json(view);
     } catch (error) {
       console.error('Error building game state:', error);
@@ -568,6 +569,12 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
         case 'config':
           g.config = sanitizeConfig(body.config, g.config);
           break;
+        case 'media': {
+          if (!['play', 'pause', 'restart'].includes(body.cmd)) throw new Error('Nieznana komenda multimediów');
+          if (!g.current || !g.current.q || !g.current.q.link) throw new Error('To pytanie nie ma filmu ani utworu');
+          g.mediaCmd = { n: ((g.mediaCmd && g.mediaCmd.n) || 0) + 1, cmd: body.cmd, qid: g.current.q.id };
+          break;
+        }
         case 'end':
           if (g.status === 'running') engine.finish(g, now, 'Gra zakończona przez prowadzącego');
           break;
