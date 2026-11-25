@@ -460,6 +460,31 @@ app.get('/api/questions', async (req, res) => {
   }
 });
 
+// Etykieta "inside" (pytanie zrozumiale tylko dla paczki znajomych) - ustawia WYLACZNIE admin
+app.patch('/api/questions/:id', async (req, res) => {
+  try {
+    if (!isAdminRequest(req)) {
+      return res.status(401).json({ error: 'Brak uprawnień' });
+    }
+    const data = await readQuestions();
+    const q = data.questions.find((x) => x.id === req.params.id);
+    if (!q) {
+      return res.status(404).json({ error: 'Nie znaleziono pytania' });
+    }
+    if (typeof req.body.inside !== 'boolean') {
+      return res.status(400).json({ error: 'Pole inside musi być true lub false' });
+    }
+    if (req.body.inside) q.inside = true;
+    else delete q.inside;
+    await fs.mkdir(path.dirname(QUESTIONS_FILE), { recursive: true });
+    await fs.writeFile(QUESTIONS_FILE, JSON.stringify(data, null, 2));
+    res.json({ success: true, id: q.id, inside: !!q.inside });
+  } catch (error) {
+    console.error('Error updating question:', error);
+    res.status(500).json({ error: 'Błąd serwera' });
+  }
+});
+
 app.delete('/api/questions/:id', async (req, res) => {
   try {
     if (!isAdminRequest(req)) {

@@ -91,7 +91,7 @@ function matchOpen(question, value) {
 }
 
 // ---------- Tworzenie gry ----------
-function createGame({ code, test, config, pool, source }) {
+function createGame({ code, test, config, pool, source, insideIncluded }) {
   const now = Date.now();
   const order = shuffle(pool.map((_, i) => i));
   return {
@@ -99,6 +99,7 @@ function createGame({ code, test, config, pool, source }) {
     format: FORMAT_ID,
     test: !!test,
     source,
+    insideIncluded: insideIncluded === undefined ? null : insideIncluded,
     createdAt: now,
     version: 1,
     status: 'lobby', // lobby | running | finished

@@ -16,6 +16,7 @@ import {
   MenuItem,
   Pagination,
   Select,
+  Switch,
   TextField,
   Typography,
 } from '@mui/material';
@@ -57,6 +58,7 @@ const QuizAdminTab = () => {
   const [search, setSearch] = useState('');
   const [typFilter, setTypFilter] = useState('all');
   const [mediaFilter, setMediaFilter] = useState('all');
+  const [insideFilter, setInsideFilter] = useState('all');
   const [page, setPage] = useState(1);
 
   const fetchList = useCallback(async () => {
@@ -95,7 +97,7 @@ const QuizAdminTab = () => {
   // Zmiana filtrow wraca na pierwsza strone
   useEffect(() => {
     setPage(1);
-  }, [search, typFilter, mediaFilter]);
+  }, [search, typFilter, mediaFilter, insideFilter]);
 
   const stats = useMemo(
     () => ({
@@ -104,6 +106,7 @@ const QuizAdminTab = () => {
       otwarte: questions.filter((q) => q.typ === 'otwarte').length,
       muzyka: questions.filter((q) => q.media === 'muzyka').length,
       wideo: questions.filter((q) => q.media === 'wideo').length,
+      inside: questions.filter((q) => q.inside).length,
     }),
     [questions]
   );
@@ -114,10 +117,12 @@ const QuizAdminTab = () => {
       if (typFilter !== 'all' && q.typ !== typFilter) return false;
       if (mediaFilter === 'none' && q.media) return false;
       if ((mediaFilter === 'muzyka' || mediaFilter === 'wideo') && q.media !== mediaFilter) return false;
+      if (insideFilter === 'inside' && !q.inside) return false;
+      if (insideFilter === 'ogolne' && q.inside) return false;
       if (needle && !q.pytanie.toLowerCase().includes(needle)) return false;
       return true;
     });
-  }, [questions, search, typFilter, mediaFilter]);
+  }, [questions, search, typFilter, mediaFilter, insideFilter]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
@@ -150,6 +155,22 @@ const QuizAdminTab = () => {
   };
 
   const hideOne = (id) => setRevealedIds((ids) => ids.filter((x) => x !== id));
+
+  // Etykieta "inside": pytanie zrozumiale tylko dla paczki znajomych (w grze mozna je pominac)
+  const toggleInside = async (q, value) => {
+    try {
+      const response = await fetch(`${API_URL}/questions/${q.id}`, {
+        method: 'PATCH',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inside: value }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Nie udało się zapisać etykiety');
+      setQuestions((list) => list.map((x) => (x.id === q.id ? { ...x, inside: value || undefined } : x)));
+    } catch (e) {
+      setError(e.message);
+    }
+  };
 
   const removeQuestion = async (q) => {
     if (!window.confirm(`Usunąć to pytanie?\n\n„${q.pytanie.slice(0, 120)}”\n\nTej operacji nie można cofnąć.`)) return;
@@ -235,9 +256,10 @@ const QuizAdminTab = () => {
             <Chip label={`Otwarte: ${stats.otwarte}`} />
             <Chip label={`🎵 Muzyczne: ${stats.muzyka}`} />
             <Chip label={`🎬 Wideo: ${stats.wideo}`} />
+            <Chip color="warning" label={`inside: ${stats.inside}`} />
           </Box>
 
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '2fr 1fr 1fr' }, gap: 1.5 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '2fr 1fr 1fr 1fr' }, gap: 1.5 }}>
             <TextField
               size="small"
               label="Szukaj w treści pytania"
@@ -260,6 +282,14 @@ const QuizAdminTab = () => {
                 <MenuItem value="none">Bez multimediów</MenuItem>
                 <MenuItem value="muzyka">🎵 Muzyczne</MenuItem>
                 <MenuItem value="wideo">🎬 Wideo</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl size="small">
+              <InputLabel id="quiz-inside-label">Inside</InputLabel>
+              <Select labelId="quiz-inside-label" label="Inside" value={insideFilter} onChange={(e) => setInsideFilter(e.target.value)}>
+                <MenuItem value="all">Wszystkie</MenuItem>
+                <MenuItem value="inside">Tylko „inside”</MenuItem>
+                <MenuItem value="ogolne">Bez „inside”</MenuItem>
               </Select>
             </FormControl>
           </Box>
@@ -296,6 +326,7 @@ const QuizAdminTab = () => {
                       <Chip size="small" color={q.typ === 'abcd' ? 'primary' : 'secondary'} label={q.typ === 'abcd' ? 'ABCD' : 'Otwarte'} />
                       {q.media === 'muzyka' && <Chip size="small" label="🎵 Muzyczne" />}
                       {q.media === 'wideo' && <Chip size="small" label="🎬 Wideo" />}
+                      {q.inside && <Chip size="small" color="warning" label="inside" />}
                       <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                         {formatDate(q.dodano)}
                       </Typography>
@@ -315,6 +346,10 @@ const QuizAdminTab = () => {
                     {isRevealed(q.id) && renderAnswers(q)}
                   </Box>
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center' }} title="Pytanie zrozumiałe tylko dla paczki znajomych">
+                      <Typography variant="caption" sx={{ fontWeight: 700 }}>inside</Typography>
+                      <Switch size="small" checked={!!q.inside} onChange={(e) => toggleInside(q, e.target.checked)} inputProps={{ 'aria-label': 'Pytanie inside' }} />
+                    </Box>
                     {!revealAll &&
                       (revealedIds.includes(q.id) ? (
                         <IconButton aria-label="Ukryj odpowiedź" title="Ukryj odpowiedź" onClick={() => hideOne(q.id)}>

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Alert, Box, Button, Container, FormControl, InputLabel, MenuItem, Select, Slider, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Checkbox, Container, FormControl, FormControlLabel, InputLabel, MenuItem, Select, Slider, TextField, Typography } from '@mui/material';
 import { SOUND_LIST, isAudioUnlocked, playSound, setMasterVolume, unlockAudio } from './sound';
 import GameTv from './GameTv';
 import GameHost from './GameHost';
@@ -113,21 +113,26 @@ const GameError = ({ error }) => (
 const FormatCard = ({ onCreated }) => {
   const [source, setSource] = useState('sample');
   const [bankCount, setBankCount] = useState(null);
+  const [insideCount, setInsideCount] = useState(0);
+  const [inside, setInside] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
     (async () => {
-      const res = await api('/questions', { admin: true });
-      if (res.ok) setBankCount((res.data.questions || []).length);
+      const res = await api('/games/bank-stats', { admin: true });
+      if (res.ok) {
+        setBankCount(res.data.total);
+        setInsideCount(res.data.inside);
+      }
     })();
   }, []);
 
   const create = async (test, forceSource) => {
     setBusy(true);
     setError('');
-    const res = await api('/games', { method: 'POST', admin: true, body: { format: 'jeden-z-dziesieciu', test, source: forceSource || (test ? 'sample' : source) } });
+    const res = await api('/games', { method: 'POST', admin: true, body: { format: 'jeden-z-dziesieciu', test, source: forceSource || (test ? 'sample' : source), ...(!test && !forceSource && source === 'bank' ? { inside } : {}) } });
     setBusy(false);
     if (!res.ok) {
       setError(res.data.error || 'Nie udało się utworzyć gry');
@@ -191,6 +196,18 @@ const FormatCard = ({ onCreated }) => {
               <MenuItem value="bank">Moje pytania z formularza{bankCount !== null ? ` (${bankCount})` : ''}</MenuItem>
             </Select>
           </FormControl>
+          {source === 'bank' && (
+            <Box sx={{ mb: 2 }}>
+              <FormControlLabel
+                control={<Checkbox checked={inside} onChange={(e) => setInside(e.target.checked)} sx={{ color: 'var(--ink-dim)' }} />}
+                label={`Pytania „inside” (zrozumiałe tylko dla paczki znajomych) – ${insideCount}`}
+                sx={{ color: 'var(--ink)', alignItems: 'flex-start', m: 0 }}
+              />
+              <Typography variant="body2" sx={{ color: 'var(--ink-dim)', ml: 4 }}>
+                Odznacz, jeśli w grze są osoby spoza paczki. Etykietę „inside” nadajesz pytaniom w panelu administratora.
+              </Typography>
+            </Box>
+          )}
           <Button variant="contained" size="large" onClick={() => create(false)} disabled={busy}>▶ Utwórz grę</Button>
         </Box>
       </Box>

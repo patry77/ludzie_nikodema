@@ -376,6 +376,18 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
     ]);
   });
 
+  // Liczba pytan w banku (i ile z nich to "inside") - bez tresci, do wyboru puli przy starcie gry
+  app.get('/api/games/bank-stats', async (req, res) => {
+    try {
+      if (!requireAdmin(req, res)) return;
+      const data = await readQuestions();
+      const list = data.questions || [];
+      res.json({ total: list.length, inside: list.filter((q) => q.inside).length });
+    } catch (error) {
+      fail(res, 500, 'Nie udało się policzyć pytań');
+    }
+  });
+
   app.get('/api/games', (req, res) => {
     if (!requireAdmin(req, res)) return;
     res.json([...games.values()].map(summary).sort((a, b) => b.createdAt - a.createdAt));
@@ -409,8 +421,10 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
       let pool;
       if (source === 'bank') {
         const data = await readQuestions();
-        pool = toEnginePool(data.questions || []);
-        if (pool.length < 5) return fail(res, 400, `W banku jest za mało pytań (${pool.length}). Dodaj ich więcej na /teleturniej albo użyj wbudowanej puli.`);
+        // Pytania "inside" (zrozumiale tylko dla paczki) - przy starcie gry mozna je wylaczyc (body.inside === false)
+        const excludeInside = body.inside === false;
+        pool = toEnginePool((data.questions || []).filter((q) => !(excludeInside && q.inside)));
+        if (pool.length < 5) return fail(res, 400, `W puli jest za mało pytań (${pool.length}${excludeInside ? ', bez pytań „inside”' : ''}). Dodaj ich więcej na /teleturniej albo użyj wbudowanej puli.`);
       } else if (source === 'music') {
         pool = toEnginePool(MUSIC_QUESTIONS);
       } else {
@@ -424,6 +438,7 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
         code: newCode(),
         test,
         source,
+        insideIncluded: source === 'bank' ? body.inside !== false : null,
         pool,
         config: sanitizeConfig(body.config, baseConfig),
       });
@@ -478,6 +493,7 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
       const view = engineOf(g).viewFor(g, role, player, now);
       view.intro = introView(g);
       view.mediaCmd = g.mediaCmd || null;
+      view.insideIncluded = g.insideIncluded === undefined ? null : g.insideIncluded;
       res.json(view);
     } catch (error) {
       console.error('Error building game state:', error);

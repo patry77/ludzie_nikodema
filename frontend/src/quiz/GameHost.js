@@ -148,6 +148,8 @@ const GameHost = ({ state, offsetRef, act, busy, error, onResetError }) => {
             </Box>
             <Typography variant="body2" sx={{ color: 'var(--ink-dim)', mt: 2 }}>
               Pula pytań: {state.poolSize} {state.poolSize < 40 && '(mała – pytania mogą się powtarzać)'}
+              {state.insideIncluded === true && ' · z pytaniami „inside”'}
+              {state.insideIncluded === false && ' · bez pytań „inside”'}
             </Typography>
           </Panel>
         )}
