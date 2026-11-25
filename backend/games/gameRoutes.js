@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const engine = require('./jedenZDziesieciu');
 const { SAMPLE_QUESTIONS } = require('./sampleQuestions');
+const { MUSIC_QUESTIONS } = require('./musicQuestions');
 const fam = require('./familiada');
 const { FAMILIADA_SAMPLE_QUESTIONS } = require('./familiadaQuestions');
 const crypto = require('crypto');
@@ -391,13 +392,15 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
       }
       if (body.format && body.format !== engine.FORMAT_ID) return fail(res, 400, 'Nieznany format teleturnieju');
       const test = !!body.test;
-      const source = body.source === 'bank' ? 'bank' : 'sample';
+      const source = body.source === 'bank' ? 'bank' : body.source === 'music' ? 'music' : 'sample';
 
       let pool;
       if (source === 'bank') {
         const data = await readQuestions();
         pool = toEnginePool(data.questions || []);
         if (pool.length < 5) return fail(res, 400, `W banku jest za mało pytań (${pool.length}). Dodaj ich więcej na /teleturniej albo użyj wbudowanej puli.`);
+      } else if (source === 'music') {
+        pool = toEnginePool(MUSIC_QUESTIONS);
       } else {
         pool = toEnginePool(SAMPLE_QUESTIONS);
       }

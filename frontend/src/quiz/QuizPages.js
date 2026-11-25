@@ -124,10 +124,10 @@ const FormatCard = ({ onCreated }) => {
     })();
   }, []);
 
-  const create = async (test) => {
+  const create = async (test, forceSource) => {
     setBusy(true);
     setError('');
-    const res = await api('/games', { method: 'POST', admin: true, body: { format: 'jeden-z-dziesieciu', test, source: test ? 'sample' : source } });
+    const res = await api('/games', { method: 'POST', admin: true, body: { format: 'jeden-z-dziesieciu', test, source: forceSource || (test ? 'sample' : source) } });
     setBusy(false);
     if (!res.ok) {
       setError(res.data.error || 'Nie udało się utworzyć gry');
@@ -172,6 +172,10 @@ const FormatCard = ({ onCreated }) => {
             sx={{ background: 'linear-gradient(120deg, var(--gold-light), var(--gold) 55%, var(--gold-deep))', color: '#1a1205', fontWeight: 800 }}>
             🧪 Uruchom tryb testowy
           </Button>
+          <Button variant="outlined" size="large" onClick={() => create(true, 'music')} disabled={busy}
+            sx={{ ml: 1.5, color: 'var(--gold)', borderColor: 'rgba(var(--accent-rgb),0.6)', fontWeight: 800 }}>
+            🎵 Test muzyczny
+          </Button>
         </Box>
 
         <Box className="glass-strong" sx={{ p: 2.5, borderRadius: '18px', border: '1px solid rgba(var(--accent-rgb),0.4)' }}>
@@ -183,6 +187,7 @@ const FormatCard = ({ onCreated }) => {
             <InputLabel id="src-label">Pula pytań</InputLabel>
             <Select labelId="src-label" label="Pula pytań" value={source} onChange={(e) => setSource(e.target.value)} sx={{ color: 'var(--ink)', '& .MuiSvgIcon-root': { color: 'var(--ink)' } }}>
               <MenuItem value="sample">Wbudowana (100 pytań wiedzy ogólnej)</MenuItem>
+              <MenuItem value="music">Muzyczna (wbudowana, 38 pytań o muzyce)</MenuItem>
               <MenuItem value="bank">Moje pytania z formularza{bankCount !== null ? ` (${bankCount})` : ''}</MenuItem>
             </Select>
           </FormControl>
