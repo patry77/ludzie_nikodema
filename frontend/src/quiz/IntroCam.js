@@ -210,6 +210,8 @@ export const IntroTv = ({ code, intro }) => {
   const [frameN, setFrameN] = useState(0);
   const [gotFrame, setGotFrame] = useState(false);
   const rev = intro.rev;
+  const modeRef = useRef(intro.mode || 'auto');
+  modeRef.current = intro.mode || 'auto';
 
   const setStatus = (value) => {
     if (framesRef.current && value !== 'live') return; // w trybie zastepczym nie nadpisujemy statusu
@@ -221,6 +223,16 @@ export const IntroTv = ({ code, intro }) => {
   // Przegladarka telewizora moze nie obslugiwac WebRTC - wtedy odbieramy klatki JPEG z telefonu (bez dzwieku)
   const startFrames = () => {
     if (framesRef.current) return;
+    if (pcRef.current) {
+      try {
+        pcRef.current.close();
+      } catch (e) {
+        /* ignorujemy */
+      }
+      pcRef.current = null;
+      liveRef.current = false;
+      setLive(false);
+    }
     setStatus('connecting');
     framesRef.current = true;
     lastStatus.current = 'frames';
@@ -277,14 +289,16 @@ export const IntroTv = ({ code, intro }) => {
     setFrames(false);
     const startedAt = Date.now();
     try {
-      hello();
+      if (modeRef.current === 'frames') startFrames();
+      else hello();
     } catch (e) {
       startFrames();
     }
     // telefon moze wlaczyc kamere pozniej niz TV powie "hello" - powtarzamy, dopoki nie ma polaczenia
     const again = setInterval(() => {
       if (liveRef.current) return;
-      if (Date.now() - startedAt > 14000) startFrames();
+      if (modeRef.current === 'frames') return; // tryb poklatkowy wybrany recznie
+      if (modeRef.current === 'auto' && Date.now() - startedAt > 14000) startFrames();
       if (Date.now() - helloAt.current > 9000) {
         try {
           hello();
@@ -300,6 +314,29 @@ export const IntroTv = ({ code, intro }) => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rev, code]);
+
+  // Reczna zmiana trybu przez prowadzacego
+  const prevMode = useRef(intro.mode || 'auto');
+  useEffect(() => {
+    const m = intro.mode || 'auto';
+    if (prevMode.current === m) return;
+    prevMode.current = m;
+    if (m === 'frames') {
+      startFrames();
+    } else if (framesRef.current) {
+      // wracamy do WebRTC (live albo auto)
+      framesRef.current = false;
+      lastStatus.current = '';
+      setFrames(false);
+      setGotFrame(false);
+      try {
+        hello();
+      } catch (e) {
+        startFrames();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [intro.mode]);
 
   const handle = async (msgs) => {
     for (const m of msgs) {
@@ -329,6 +366,9 @@ export const IntroTv = ({ code, intro }) => {
     <Box sx={{ position: 'fixed', inset: 0, zIndex: 90, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 'clamp(10px, 2vh, 28px)', background: 'rgba(3,5,20,0.92)', backdropFilter: 'blur(6px)' }}>
       <Typography className="pop-in" sx={{ color: 'var(--gold)', letterSpacing: 8, textTransform: 'uppercase', fontSize: 'clamp(0.9rem, 1.6vw, 1.8rem)' }}>Przedstawia się</Typography>
       <Typography className="gold-text neon-title" sx={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(2rem, 5vw, 6rem)', lineHeight: 1 }}>{intro.name}</Typography>
+      <Typography sx={{ color: 'var(--ink-dim)', fontSize: 'clamp(0.8rem, 1.2vw, 1.4rem)' }}>
+        {live ? 'Tryb: na żywo' : frames ? 'Tryb: poklatkowy (bez dźwięku)' : 'Łączenie…'}
+      </Typography>
       <Box sx={{ position: 'relative', width: 'min(70vw, 120vh)', aspectRatio: '4 / 3', maxHeight: '62vh', borderRadius: '24px', overflow: 'hidden', border: '4px solid var(--gold)', boxShadow: '0 0 60px rgba(var(--accent-rgb),0.45)', background: '#000' }}>
         <Box component="video" ref={videoRef} autoPlay playsInline sx={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
         {frames && !live && (
@@ -379,6 +419,23 @@ export const IntroHost = ({ code, intro, people }) => {
             Teraz: {intro.name} · <span style={{ color: intro.status === 'live' ? '#8dffaf' : 'var(--ink-dim)' }}>{statusText[intro.status] || intro.status}</span>
           </Typography>
           <Button variant="contained" color="warning" onClick={() => call({ action: 'stop' })} disabled={busy}>⏹ Zakończ przedstawianie</Button>
+        </Box>
+      ) : null}
+      {intro ? (
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center', mt: 1.5 }}>
+          <Typography sx={{ color: 'var(--ink-dim)', mr: 1 }}>Tryb obrazu na TV:</Typography>
+          {[['auto', 'Automatycznie'], ['live', '🔴 Na żywo (z dźwiękiem)'], ['frames', '🖼 Poklatkowo (bez dźwięku)']].map(([m, label]) => (
+            <Button
+              key={m}
+              size="small"
+              variant={(intro.mode || 'auto') === m ? 'contained' : 'outlined'}
+              onClick={() => call({ action: 'mode', mode: m })}
+              disabled={busy}
+              sx={(intro.mode || 'auto') === m ? undefined : { color: 'var(--ink)', borderColor: 'rgba(var(--accent-rgb),0.5)' }}
+            >
+              {label}
+            </Button>
+          ))}
         </Box>
       ) : (
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>

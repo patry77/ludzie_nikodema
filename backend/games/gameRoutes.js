@@ -241,7 +241,7 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
     if (!it || g.status !== 'lobby') return null;
     const p = g.players.find((x) => x.id === it.presenterId);
     if (!p) return null;
-    return { presenterId: p.id, name: p.name, rev: it.rev, status: it.status };
+    return { presenterId: p.id, name: p.name, rev: it.rev, status: it.status, mode: it.mode || 'auto' };
   };
 
   app.post('/api/games/:code/intro', (req, res) => {
@@ -254,12 +254,22 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
       touch(g);
       return res.json({ success: true });
     }
+    if (body.action === 'mode') {
+      const it = intros.get(g.code);
+      if (!it) return fail(res, 400, 'Przedstawianie nie jest włączone');
+      if (!['auto', 'live', 'frames'].includes(body.mode)) return fail(res, 400, 'Nieznany tryb');
+      it.mode = body.mode;
+      // przy zmianie trybu telefon i TV ustalaja status od nowa
+      it.status = body.mode === 'frames' ? 'frames' : 'connecting';
+      touch(g);
+      return res.json({ success: true });
+    }
     if (body.action !== 'start') return fail(res, 400, 'Nieznana akcja');
     if (g.status !== 'lobby') return fail(res, 400, 'Przedstawianie jest możliwe tylko przed startem gry');
     const p = g.players.find((x) => x.id === body.playerId);
     if (!p) return fail(res, 404, 'Nie znaleziono osoby');
     if (p.isBot) return fail(res, 400, 'Bot nie ma kamery');
-    intros.set(g.code, { presenterId: p.id, rev: crypto.randomUUID(), status: 'waiting', seq: 0, msgs: [] });
+    intros.set(g.code, { presenterId: p.id, rev: crypto.randomUUID(), status: 'waiting', mode: 'auto', seq: 0, msgs: [] });
     touch(g);
     res.json({ success: true });
   });

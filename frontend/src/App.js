@@ -18,6 +18,7 @@ import Navbar from './components/Navbar';
 import Snowflakes from './components/Snowflakes';
 import Background from './components/Background';
 import PageTitle from './components/PageTitle';
+import InstallPrompt from './components/InstallPrompt';
 
 // Strony ze starym, jasnym wygladem dostaja delikatniejsze naroza (patrz index.css)
 const LEGACY_PATHS = ['/admin', '/wakacje', '/wiki', '/embedtest'];
@@ -34,6 +35,7 @@ const Shell = () => {
     <>
       <PageTitle />
       {!isTv && <Navbar />}
+      {!isTv && <InstallPrompt />}
       <main className={isLegacy ? 'legacy-surface' : ''}>
         <Routes>
           <Route path="/" element={<MenuPage />} />
