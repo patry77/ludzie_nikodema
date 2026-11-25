@@ -1,52 +1,36 @@
 'use strict';
-// Wbudowana pula pytan muzycznych (wiedza o muzyce) do 1 z 10. Dwa pytania maja odtwarzacz (YouTube).
+// Wbudowana pula pytan MUZYCZNYCH Z LINKIEM (YouTube) - taka jak z formularza pytan (media + link).
+// Linki sprawdzone przez YouTube oEmbed. Do testu odtwarzacza w 1 z 10 (TV, prowadzacy, telefon).
 
-const abcd = (id, pytanie, a, b, c, d, ok, extra) => ({
-  id: `music-${id}`, typ: 'abcd', pytanie, odp_a: a, odp_b: b, odp_c: c, odp_d: d, poprawna_odpowiedz: ok, ...(extra || {}),
+const yt = (id) => `https://www.youtube.com/watch?v=${id}`;
+const song = (n, id, pytanie, a, b, c, d, ok, media) => ({
+  id: `music-${n}`, typ: 'abcd', pytanie, odp_a: a, odp_b: b, odp_c: c, odp_d: d, poprawna_odpowiedz: ok, media: media || 'muzyka', link: yt(id),
 });
-const open = (id, pytanie, ok, alt, extra) => ({
-  id: `music-${id}`, typ: 'otwarte', pytanie, poprawna_odpowiedz: ok, alt: alt || [], ...(extra || {}),
+const guess = (n, id, pytanie, ok, alt, media) => ({
+  id: `music-${n}`, typ: 'otwarte', pytanie, poprawna_odpowiedz: ok, alt: alt || [], media: media || 'muzyka', link: yt(id),
 });
 
 const MUSIC_QUESTIONS = [
-  open(1, 'Jaki to utwór zespołu Queen?', 'Bohemian Rhapsody', ['bohemian rhapsody'], { media: 'muzyka', link: 'https://www.youtube.com/watch?v=fJ9rUzIMcZQ' }),
-  abcd(2, 'Kto wykonuje ten utwór?', 'Rick Astley', 'Michael Jackson', 'Elton John', 'Phil Collins', 'a', { media: 'wideo', link: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' }),
-  abcd(3, 'Ile osób liczył oryginalny skład The Beatles?', '3', '4', '5', '6', 'b'),
-  abcd(4, 'Który kompozytor stracił słuch, a mimo to napisał IX Symfonię z „Odą do radości”?', 'Mozart', 'Bach', 'Beethoven', 'Chopin', 'c'),
-  abcd(5, 'Który instrument ma 88 klawiszy?', 'Organy', 'Akordeon', 'Fortepian', 'Klawesyn', 'c'),
-  abcd(6, 'Kto jest autorem „Czterech pór roku”?', 'Antonio Vivaldi', 'Johann Strauss', 'Giuseppe Verdi', 'Claude Debussy', 'a'),
-  abcd(7, 'Który polski kompozytor jest autorem „Poloneza A-dur”?', 'Moniuszko', 'Chopin', 'Szymanowski', 'Penderecki', 'b'),
-  abcd(8, 'Jak nazywa się „król popu”?', 'Elvis Presley', 'Michael Jackson', 'Prince', 'George Michael', 'b'),
-  abcd(9, 'Którego zespołu liderem był Freddie Mercury?', 'Led Zeppelin', 'Queen', 'Pink Floyd', 'The Who', 'b'),
-  abcd(10, 'Z jakiego kraju pochodzi zespół ABBA?', 'Norwegia', 'Dania', 'Szwecja', 'Finlandia', 'c'),
-  abcd(11, 'Ile strun ma standardowa gitara klasyczna?', '4', '5', '6', '8', 'c'),
-  abcd(12, 'Który instrument należy do grupy instrumentów dętych blaszanych?', 'Flet', 'Trąbka', 'Klarnet', 'Obój', 'b'),
-  abcd(13, 'Jak nazywa się najniższy męski głos śpiewaczy?', 'Tenor', 'Baryton', 'Bas', 'Kontratenor', 'c'),
-  abcd(14, 'Kto napisał operę „Straszny dwór”?', 'Stanisław Moniuszko', 'Fryderyk Chopin', 'Ignacy Paderewski', 'Henryk Wieniawski', 'a'),
-  abcd(15, 'Jak nazywa się brytyjska piosenkarka, autorka płyty „21”?', 'Dua Lipa', 'Adele', 'Amy Winehouse', 'Duffy', 'b'),
-  abcd(16, 'Który zespół wydał album „The Dark Side of the Moon”?', 'Pink Floyd', 'Genesis', 'Deep Purple', 'Yes', 'a'),
-  abcd(18, 'W którym mieście odbywa się Krajowy Festiwal Polskiej Piosenki?', 'Opole', 'Kielce', 'Zielona Góra', 'Lublin', 'a'),
-  abcd(19, 'Który polski zespół nagrał przebój „Przez Twe oczy zielone”?', 'Akcent', 'Bajm', 'Lombard', 'Perfect', 'a'),
-  abcd(20, 'Kto śpiewał przebój „Jolka, Jolka pamiętasz”?', 'Budka Suflera', 'Perfect', 'Lady Pank', 'Dżem', 'a'),
-  abcd(22, 'W jakim kraju wymyślono tango?', 'Hiszpania', 'Argentyna', 'Meksyk', 'Kuba', 'b'),
-  abcd(23, 'Który polski taniec narodowy tradycyjnie otwiera bal, np. studniówkę?', 'Krakowiak', 'Mazur', 'Polonez', 'Oberek', 'c'),
-  abcd(24, 'Który kompozytor napisał „Marsz weselny” do „Snu nocy letniej”?', 'Mendelssohn', 'Wagner', 'Schubert', 'Brahms', 'a'),
-  abcd(25, 'Jak nazywa się mały instrument strunowy szarpany, kojarzony z Hawajami?', 'Banjo', 'Ukulele', 'Mandolina', 'Lutnia', 'b'),
-  abcd(26, 'Co oznacza w nutach słowo „forte”?', 'Cicho', 'Szybko', 'Głośno', 'Wolno', 'c'),
-  abcd(27, 'Który kolor mają klawisze fortepianu oznaczające półtony?', 'Czarny', 'Biały', 'Czerwony', 'Brązowy', 'a'),
-  abcd(28, 'Kto jest autorem utworu „Imagine”?', 'Paul McCartney', 'John Lennon', 'George Harrison', 'Ringo Starr', 'b'),
-  abcd(29, 'Jak nazywał się wokalista zespołu Nirvana?', 'Eddie Vedder', 'Kurt Cobain', 'Chris Cornell', 'Dave Grohl', 'b'),
-  open(31, 'Jak nazywa się wielki festiwal muzyczny w Wielkiej Brytanii, słynący z błota i sceny „Pyramid”?', 'Glastonbury', ['glastonbury festival']),
-  open(33, 'Jak nazywa się bożonarodzeniowa kolęda zaczynająca się od słów „Wśród nocnej ciszy”?', 'Wśród nocnej ciszy', ['wsrod nocnej ciszy']),
-  open(34, 'Jak nazywa się kolęda zaczynająca się od słów „Bóg się rodzi, moc truchleje”?', 'Bóg się rodzi', ['bog sie rodzi']),
-  open(37, 'Jak nazywa się zespół, który wykonuje utwór „Last Christmas”?', 'Wham!', ['wham']),
-  open(38, 'Jaka piosenkarka wykonuje „All I Want for Christmas Is You”?', 'Mariah Carey', ['mariah carey', 'carey']),
-  open(39, 'Jaki jest tytuł kolędy zaczynającej się od słów „Lulajże, Jezuniu”?', 'Lulajże, Jezuniu', ['lulajze jezuniu', 'lulajze']),
-  abcd(41, 'Który zespół wykonuje „Hotel California”?', 'Eagles', 'Fleetwood Mac', 'The Doors', 'Kansas', 'a'),
-  abcd(42, 'Jak ma na imię wokalista zespołu U2, znany jako Bono?', 'Paul', 'Adam', 'Dave', 'Larry', 'a'),
-  abcd(43, 'Ile linii ma pięciolinia?', '4', '5', '6', '7', 'b'),
-  abcd(44, 'Kto wykonał „Sen o Warszawie”?', 'Czesław Niemen', 'Krzysztof Krawczyk', 'Marek Grechuta', 'Zbigniew Wodecki', 'a'),
-  abcd(45, 'Który instrument ma pedały i klawiaturę nożną, a słynie z kościołów?', 'Akordeon', 'Organy', 'Harmonijka', 'Pianino', 'b'),
+  guess(1, 'fJ9rUzIMcZQ', 'Jaki to utwór zespołu Queen?', 'Bohemian Rhapsody', ['bohemian rhapsody']),
+  song(2, 'dQw4w9WgXcQ', 'Kto wykonuje ten utwór?', 'Rick Astley', 'Michael Jackson', 'Elton John', 'Phil Collins', 'a', 'wideo'),
+  song(3, 'kJQP7kiw5Fk', 'Jaki to utwór?', 'Bailando', 'Despacito', 'Gasolina', 'Danza Kuduro', 'b'),
+  guess(4, '9bZkp7q19f0', 'Jak nazywa się ten taniec-przebój koreańskiego artysty PSY?', 'Gangnam Style', ['gangnam']),
+  song(5, 'JGwWNGJdvx8', 'Kto śpiewa „Shape of You”?', 'Justin Bieber', 'Ed Sheeran', 'Sam Smith', 'Shawn Mendes', 'b'),
+  guess(6, 'Zi_XLOBDo_Y', 'Jaki to utwór Michaela Jacksona?', 'Billie Jean', ['billie jean']),
+  song(7, 'hTWKbfoikeg', 'Który zespół wykonuje ten utwór?', 'Pearl Jam', 'Soundgarden', 'Nirvana', 'Foo Fighters', 'c'),
+  song(8, 'OPf0YbXqDm0', 'Jaki to utwór?', 'Uptown Funk', 'Happy', 'Get Lucky', 'Shake It Off', 'a', 'wideo'),
+  guess(9, 'YQHsXMglC9A', 'Kto wykonuje ten utwór „Hello”?', 'Adele', ['adele']),
+  song(10, 'FTQbiNvZqaY', 'Jak nazywa się ten przebój zespołu Toto?', 'Rosanna', 'Hold the Line', 'Africa', 'I Won\'t Hold You Back', 'c'),
+  guess(11, '1w7OgIMMRc4', 'Jaki to utwór zespołu Guns N\' Roses?', 'Sweet Child O\' Mine', ['sweet child o mine', 'sweet child']),
+  song(12, 'fNFzfwLM72c', 'Który zespół wykonuje „Stayin\' Alive”?', 'ABBA', 'Bee Gees', 'Boney M.', 'Earth, Wind & Fire', 'b', 'wideo'),
+  guess(13, 'djV11Xbc914', 'Jaki to utwór zespołu a-ha?', 'Take On Me', ['take on me']),
+  song(14, 'bx1Bh8ZvH84', 'Który zespół wykonuje „Wonderwall”?', 'Blur', 'Oasis', 'Coldplay', 'Radiohead', 'b'),
+  guess(15, 'YkgkThdzX-8', 'Jaki to utwór Johna Lennona?', 'Imagine', ['imagine']),
+  song(16, '1k8craCGpgs', 'Który zespół wykonuje „Don\'t Stop Believin\'”?', 'Journey', 'Bon Jovi', 'Survivor', 'Foreigner', 'a'),
+  guess(17, '_Yhyp-_hX2s', 'Który raper wykonuje „Lose Yourself”?', 'Eminem', ['eminem']),
+  song(18, 'rYEDA3JcQqw', 'Jaki to utwór Adele?', 'Skyfall', 'Hello', 'Someone Like You', 'Rolling in the Deep', 'd', 'wideo'),
+  guess(19, 'izGwDsrQ1eQ', 'Kto śpiewa „Careless Whisper”?', 'George Michael', ['george michael', 'michael']),
+  song(20, 'sOnqjkJTMaA', 'Który artysta wykonuje „Thriller”?', 'Prince', 'Michael Jackson', 'Lionel Richie', 'Stevie Wonder', 'b', 'wideo'),
 ];
 
 module.exports = { MUSIC_QUESTIONS };

@@ -174,7 +174,7 @@ const FormatCard = ({ onCreated }) => {
           </Button>
           <Button variant="outlined" size="large" onClick={() => create(true, 'music')} disabled={busy}
             sx={{ ml: 1.5, color: 'var(--gold)', borderColor: 'rgba(var(--accent-rgb),0.6)', fontWeight: 800 }}>
-            🎵 Test muzyczny
+            🎵 Test z YouTube
           </Button>
         </Box>
 
@@ -187,7 +187,7 @@ const FormatCard = ({ onCreated }) => {
             <InputLabel id="src-label">Pula pytań</InputLabel>
             <Select labelId="src-label" label="Pula pytań" value={source} onChange={(e) => setSource(e.target.value)} sx={{ color: 'var(--ink)', '& .MuiSvgIcon-root': { color: 'var(--ink)' } }}>
               <MenuItem value="sample">Wbudowana (100 pytań wiedzy ogólnej)</MenuItem>
-              <MenuItem value="music">Muzyczna (wbudowana, 38 pytań o muzyce)</MenuItem>
+              <MenuItem value="music">Muzyczna z YouTube (wbudowana, 20 pytań z linkami)</MenuItem>
               <MenuItem value="bank">Moje pytania z formularza{bankCount !== null ? ` (${bankCount})` : ''}</MenuItem>
             </Select>
           </FormControl>
