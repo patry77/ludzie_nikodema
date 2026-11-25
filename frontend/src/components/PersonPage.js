@@ -125,9 +125,9 @@ const PersonPage = () => {
       ) : (
         <Box sx={{ p: 3, borderRadius: '18px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(var(--accent-rgb),0.35)' }}>
           <Typography variant="h5" sx={{ color: 'var(--gold)', mb: 1 }}>
-            ⏳ Losowanie jeszcze się nie odbyło
+            {person.drawDone ? '⏳ Czekasz na dolosowanie' : '⏳ Losowanie jeszcze się nie odbyło'}
           </Typography>
-          <Typography sx={{ color: 'var(--ink-dim)' }}>Poczekaj na losowanie, a następnie odśwież tę stronę.</Typography>
+          <Typography sx={{ color: 'var(--ink-dim)' }}>{person.drawDone ? 'Dołączyłeś/aś po losowaniu – organizator dolosuje Ci osobę. Odśwież tę stronę później.' : 'Poczekaj na losowanie, a następnie odśwież tę stronę.'}</Typography>
         </Box>
       )}
     </Box>

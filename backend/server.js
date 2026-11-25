@@ -488,7 +488,7 @@ app.get('/api/person/:linkId', async (req, res) => {
     if (!person) {
       return res.status(404).json({ error: 'Person not found' });
     }
-    res.json(person);
+    res.json({ ...person, drawDone: data.people.some(p => p.assignedTo) });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -793,9 +793,6 @@ app.post('/api/mikolajki/join', async (req, res) => {
 
     const data = await readData();
 
-    if (data.people.some(p => p.assignedTo)) {
-      return res.status(409).json({ error: 'Losowanie już się odbyło – zgłoś się do organizatora.' });
-    }
     if (data.people.some(p => p.name.trim().toLowerCase() === name.toLowerCase())) {
       return res.status(400).json({ error: 'Osoba o takim imieniu jest już na liście.' });
     }
@@ -811,7 +808,7 @@ app.post('/api/mikolajki/join', async (req, res) => {
     };
     data.people.push(newPerson);
     await writeData(data);
-    res.json({ success: true, name: newPerson.name });
+    res.json({ success: true, name: newPerson.name, late: data.people.some(p => p.assignedTo) });
   } catch (error) {
     console.error('Error in public join:', error);
     res.status(500).json({ error: 'Błąd serwera. Spróbuj ponownie.' });
@@ -821,7 +818,7 @@ app.post('/api/mikolajki/join', async (req, res) => {
 // Edit a person (admin): name, email, wishes and the list of people they must not draw
 app.put('/api/people/:id', async (req, res) => {
   try {
-    const { name, email, wants, excludeEmails } = req.body;
+    const { name, email, wants, excludeEmails, assignedToId, notify } = req.body;
     const data = await readData();
     const person = data.people.find(p => p.id === req.params.id);
     if (!person) {
@@ -866,8 +863,38 @@ app.put('/api/people/:id', async (req, res) => {
     person.wants = newWants;
     person.excludeEmails = newExcludes;
     person.excludeEmail = newExcludes[0] || ''; // keep legacy field in sync
+
+    // Reczne przypisanie osoby (np. dla spoznialskich): '' = usun, id = ustaw, brak pola = bez zmian
+    let assignmentChanged = false;
+    if (typeof assignedToId === 'string') {
+      if (assignedToId === '') {
+        assignmentChanged = !!person.assignedTo;
+        person.assignedTo = null;
+      } else {
+        const target = data.people.find(p => p.id === assignedToId);
+        if (!target) {
+          return res.status(400).json({ error: 'Wybrana osoba do obdarowania nie istnieje' });
+        }
+        if (target.id === person.id) {
+          return res.status(400).json({ error: 'Osoba nie może obdarować samej siebie' });
+        }
+        assignmentChanged = !person.assignedTo || person.assignedTo.id !== target.id;
+        person.assignedTo = { id: target.id, name: target.name, wants: target.wants || '' };
+      }
+    }
+
     await writeData(data);
-    res.json(person);
+
+    let emailResult = null;
+    if (assignmentChanged && notify && person.assignedTo && person.email && process.env.SMTP_HOST) {
+      const baseUrl = process.env.BASE_URL || req.protocol + '://' + req.get('host');
+      try {
+        emailResult = await require('./utils/emailService').sendEmail(person, person.assignedTo, baseUrl);
+      } catch (e) {
+        emailResult = { success: false, error: e.message };
+      }
+    }
+    res.json({ ...person, emailResult });
   } catch (error) {
     console.error('Error editing person:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });

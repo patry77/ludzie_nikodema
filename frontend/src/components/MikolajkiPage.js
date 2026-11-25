@@ -51,7 +51,7 @@ const MikolajkiPage = () => {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Nie udało się zapisać. Spróbuj ponownie.');
-      setDone({ name: data.name });
+      setDone({ name: data.name, late: !!data.late });
       confetti({ particleCount: 140, spread: 90, origin: { y: 0.55 }, colors: preset.colors.confetti });
     } catch (err) {
       setError(err.message);
@@ -90,7 +90,9 @@ const MikolajkiPage = () => {
               Jesteś na liście, {done.name}! 🎄
             </Typography>
             <Typography sx={{ color: 'var(--ink-dim)', mb: 3 }}>
-              Gdy losowanie się odbędzie, dostaniesz swój osobisty link mailem.
+              {done.late
+                ? 'Losowanie już się odbyło – organizator dolosuje Ci osobę i da znać mailem.'
+                : 'Gdy losowanie się odbędzie, dostaniesz swój osobisty link mailem.'}
             </Typography>
             <Button onClick={reset} variant="outlined" sx={{ color: 'var(--gold)', borderColor: 'rgba(var(--accent-rgb),0.6)' }}>
               Dodaj kolejną osobę

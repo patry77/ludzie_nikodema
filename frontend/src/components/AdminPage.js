@@ -32,6 +32,8 @@ import {
   TableRow,
   Select,
   MenuItem,
+  FormControlLabel,
+  Checkbox,
   FormControl,
   InputLabel,
   Link,
@@ -74,6 +76,8 @@ const AdminPage = () => {
   const [personEmail, setPersonEmail] = useState('');
   const [personWants, setPersonWants] = useState('');
   const [personExcludes, setPersonExcludes] = useState([]); // lista emaili
+  const [personAssignedId, setPersonAssignedId] = useState('');
+  const [personNotify, setPersonNotify] = useState(true);
   const [savingPerson, setSavingPerson] = useState(false);
   const [testEmail, setTestEmail] = useState('');
   const [loading, setLoading] = useState(false);
@@ -320,6 +324,8 @@ const AdminPage = () => {
     setPersonEmail(person.email || '');
     setPersonWants(person.wants || '');
     setPersonExcludes(getExcludes(person));
+    setPersonAssignedId((person.assignedTo && person.assignedTo.id) || '');
+    setPersonNotify(true);
   };
 
   const closeEditPerson = () => {
@@ -339,6 +345,8 @@ const AdminPage = () => {
           email: personEmail,
           wants: personWants,
           excludeEmails: personExcludes,
+          assignedToId: personAssignedId,
+          notify: personNotify,
         }),
       });
       const result = await response.json().catch(() => ({}));
@@ -347,7 +355,7 @@ const AdminPage = () => {
         return;
       }
       setPeople((prev) => prev.map((p) => (p.id === result.id ? result : p)));
-      showSnackbar('Zapisano zmiany!');
+      showSnackbar(result.emailResult ? (result.emailResult.success ? 'Zapisano i wysłano mail!' : 'Zapisano, ale mail nie wyszedł: ' + (result.emailResult.error || '')) : 'Zapisano zmiany!');
       closeEditPerson();
     } catch (error) {
       showSnackbar('Błąd podczas zapisywania: ' + error.message);
@@ -1325,6 +1333,29 @@ const AdminPage = () => {
               )}
               noOptionsText="Brak osób z emailem do wykluczenia"
             />
+            <TextField
+              select
+              label="Kogo obdarowuje (ręczne przypisanie)"
+              value={personAssignedId}
+              onChange={(e) => setPersonAssignedId(e.target.value)}
+              helperText="Dla osób, które dołączyły po losowaniu. Zostaw „brak”, aby nie zmieniać losowania."
+              fullWidth
+            >
+              <MenuItem value="">— brak —</MenuItem>
+              {people
+                .filter((p) => editingPerson && p.id !== editingPerson.id)
+                .map((p) => (
+                  <MenuItem key={p.id} value={p.id}>
+                    {p.name}
+                  </MenuItem>
+                ))}
+            </TextField>
+            {personAssignedId !== ((editingPerson && editingPerson.assignedTo && editingPerson.assignedTo.id) || '') && personAssignedId && (
+              <FormControlLabel
+                control={<Checkbox checked={personNotify} onChange={(e) => setPersonNotify(e.target.checked)} />}
+                label="Wyślij tej osobie mail z linkiem"
+              />
+            )}
           </Box>
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
