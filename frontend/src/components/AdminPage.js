@@ -495,6 +495,26 @@ const AdminPage = () => {
     }
   };
 
+  const [resending, setResending] = useState(false);
+  const resendAllEmails = async () => {
+    const n = people.filter((p) => p.assignedTo && p.email).length;
+    if (!window.confirm(`Wysłać ponownie maile z linkami do ${n} osób?`)) return;
+    setResending(true);
+    try {
+      const response = await fetch(`${API_URL}/resend-emails`, { method: 'POST' });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        showSnackbar(result.error || 'Błąd wysyłania maili');
+      } else {
+        showSnackbar(`Wysłano: ${result.sent}${result.failed ? ', nieudane: ' + result.failed : ''}`);
+      }
+    } catch (error) {
+      showSnackbar('Błąd wysyłania maili: ' + error.message);
+    } finally {
+      setResending(false);
+    }
+  };
+
   const sendTestEmail = async () => {
     if (!testEmail.trim()) {
       showSnackbar('Podaj adres email');
@@ -1249,6 +1269,18 @@ const AdminPage = () => {
           >
             {loading ? 'Losowanie...' : '🎲 Losuj osoby!'}
           </Button>
+
+          {hasAssignments && (
+            <Button
+              variant="outlined"
+              size="large"
+              onClick={resendAllEmails}
+              disabled={resending}
+              className="px-8 py-3 text-lg font-bold"
+            >
+              {resending ? 'Wysyłanie...' : '✉️ Wyślij maile ponownie'}
+            </Button>
+          )}
 
           {hasAssignments && (
             <Button

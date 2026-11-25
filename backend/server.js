@@ -642,6 +642,22 @@ app.post('/api/draw-confirm', async (req, res) => {
   }
 });
 
+// Resend result emails to everyone who has an assignment and an email address
+app.post('/api/resend-emails', async (req, res) => {
+  try {
+    if (!process.env.SMTP_HOST) {
+      return res.status(400).json({ error: 'Poczta (SMTP) nie jest skonfigurowana na serwerze.' });
+    }
+    const data = await readData();
+    const baseUrl = process.env.BASE_URL || req.protocol + '://' + req.get('host');
+    const results = await require('./utils/emailService').sendEmailsToAll(data.people, baseUrl);
+    const sent = results.filter(r => r.success).length;
+    res.json({ success: true, sent, failed: results.length - sent, results });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Draw assignments (shuffle and assign with exclusions) - DEPRECATED, use draw-preview + draw-confirm
 app.post('/api/draw', async (req, res) => {
   try {
