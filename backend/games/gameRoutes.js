@@ -9,6 +9,7 @@ const engine = require('./jedenZDziesieciu');
 const { SAMPLE_QUESTIONS } = require('./sampleQuestions');
 const { MUSIC_QUESTIONS } = require('./musicQuestions');
 const fam = require('./familiada');
+const kahoot = require('./kahoot');
 const { FAMILIADA_SAMPLE_QUESTIONS } = require('./familiadaQuestions');
 const crypto = require('crypto');
 
@@ -25,7 +26,7 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
   const FAM_QUESTIONS_FILE = path.join(dataDir, 'familiada-questions.json');
   let saveTimer = null;
   // Kazdy format ma wlasny silnik o tym samym interfejsie (tick / viewFor)
-  const engineOf = (g) => (g.format === fam.FORMAT_ID ? fam : engine);
+  const engineOf = (g) => (g.format === fam.FORMAT_ID ? fam : g.format === kahoot.FORMAT_ID ? kahoot : engine);
 
   // ---------- Zapis / odczyt ----------
   function load() {
@@ -111,6 +112,16 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
     if (input.buzzSeconds !== undefined) c.buzzSeconds = num(input.buzzSeconds, 5, 60, c.buzzSeconds);
     if (input.designateSeconds !== undefined) c.designateSeconds = num(input.designateSeconds, 10, 120, c.designateSeconds);
     if (input.autoAdvanceSeconds !== undefined) c.autoAdvanceSeconds = num(input.autoAdvanceSeconds, 0, 60, c.autoAdvanceSeconds);
+    if (input.botAccuracy !== undefined) c.botAccuracy = num(input.botAccuracy, 0.05, 0.98, c.botAccuracy);
+    if (input.botSpeed !== undefined) c.botSpeed = num(input.botSpeed, 0.05, 3, c.botSpeed || 1);
+    return c;
+  }
+
+  function sanitizeKahootConfig(input, base) {
+    const c = { ...base };
+    if (!input || typeof input !== 'object') return c;
+    if (input.questionSeconds !== undefined) c.questionSeconds = num(input.questionSeconds, 5, 120, c.questionSeconds);
+    if (input.totalQuestions !== undefined) c.totalQuestions = Math.round(num(input.totalQuestions, 3, 50, c.totalQuestions));
     if (input.botAccuracy !== undefined) c.botAccuracy = num(input.botAccuracy, 0.05, 0.98, c.botAccuracy);
     if (input.botSpeed !== undefined) c.botSpeed = num(input.botSpeed, 0.05, 3, c.botSpeed || 1);
     return c;
@@ -367,6 +378,13 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
         defaults: engine.DEFAULT_CONFIG,
       },
       {
+        id: kahoot.FORMAT_ID,
+        label: 'Kahoot',
+        minPlayers: kahoot.MIN_PLAYERS,
+        maxPlayers: kahoot.MAX_PLAYERS,
+        defaults: kahoot.DEFAULT_CONFIG,
+      },
+      {
         id: fam.FORMAT_ID,
         label: 'Familiada',
         minPlayers: 0,
@@ -382,7 +400,8 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
       if (!requireAdmin(req, res)) return;
       const data = await readQuestions();
       const list = data.questions || [];
-      res.json({ total: list.length, inside: list.filter((q) => q.inside).length });
+      const abcd = list.filter((q) => q.typ === 'abcd');
+      res.json({ total: list.length, inside: list.filter((q) => q.inside).length, abcd: abcd.length, insideAbcd: abcd.filter((q) => q.inside).length });
     } catch (error) {
       fail(res, 500, 'Nie udało się policzyć pytań');
     }
@@ -413,6 +432,38 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
         games.set(fgame.code, fgame);
         saveSoon();
         return res.json({ code: fgame.code, test: testFam, playerId: famTester ? famTester.id : null, token: famTester ? famTester.token : null });
+      }
+      if (body.format === kahoot.FORMAT_ID) {
+        const ktest = !!body.test;
+        const ksource = body.source === 'bank' ? 'bank' : body.source === 'music' ? 'music' : 'sample';
+        const excludeInside = body.inside === false;
+        let kpool;
+        if (ksource === 'bank') {
+          const data = await readQuestions();
+          kpool = toEnginePool((data.questions || []).filter((q) => q.typ === 'abcd' && !(excludeInside && q.inside)));
+        } else if (ksource === 'music') {
+          kpool = toEnginePool(MUSIC_QUESTIONS.filter((q) => q.typ === 'abcd'));
+        } else {
+          kpool = toEnginePool(SAMPLE_QUESTIONS.filter((q) => q.typ === 'abcd'));
+        }
+        if (kpool.length < 5) return fail(res, 400, `W puli jest za mało pytań ABCD (${kpool.length}${ksource === 'bank' && excludeInside ? ', bez pytań „inside”' : ''}). Kahoot używa tylko pytań zamkniętych.`);
+        const kbase = ktest ? { ...kahoot.DEFAULT_CONFIG, questionSeconds: 12 } : { ...kahoot.DEFAULT_CONFIG };
+        const kgame = kahoot.createGame({
+          code: newCode(),
+          test: ktest,
+          source: ksource,
+          insideIncluded: ksource === 'bank' ? !excludeInside : null,
+          pool: kpool,
+          config: sanitizeKahootConfig(body.config, kbase),
+        });
+        let ktester = null;
+        if (ktest) {
+          ktester = kahoot.addPlayer(kgame, { name: 'Ty (test)', isBot: false });
+          for (let i = 0; i < 7; i++) kahoot.addPlayer(kgame, { name: `Bot ${BOT_NAMES[i]}`, isBot: true });
+        }
+        games.set(kgame.code, kgame);
+        saveSoon();
+        return res.json({ code: kgame.code, test: ktest, playerId: ktester ? ktester.id : null, token: ktester ? ktester.token : null });
       }
       if (body.format && body.format !== engine.FORMAT_ID) return fail(res, 400, 'Nieznany format teleturnieju');
       const test = !!body.test;
@@ -518,7 +569,7 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
         touch(g);
         return res.json({ playerId: pf.id, token: pf.token, name: pf.name, team: pf.team });
       }
-      const p = engine.addPlayer(g, { name: req.body && req.body.name, isBot: false });
+      const p = (g.format === kahoot.FORMAT_ID ? kahoot : engine).addPlayer(g, { name: req.body && req.body.name, isBot: false });
       touch(g);
       res.json({ playerId: p.id, token: p.token, seat: p.seat, name: p.name });
     } catch (error) {
@@ -557,6 +608,43 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
             /* nie bylo zdjecia */
           }
         } else fam.hostAction(g, body, now);
+        touch(g);
+        return res.json({ success: true, version: g.version });
+      }
+      if (g.format === kahoot.FORMAT_ID) {
+        // Kahoot: prowadzacy moze tylko przejsc dalej albo wstrzymac gre (poza poczekalnia: start, ustawienia, boty)
+        switch (body.action) {
+          case 'start':
+            kahoot.start(g, now);
+            break;
+          case 'next':
+            kahoot.advance(g, now);
+            break;
+          case 'pause':
+            kahoot.pause(g, now);
+            break;
+          case 'resume':
+            kahoot.resume(g, now);
+            break;
+          case 'kick':
+            kahoot.removePlayer(g, body.playerId);
+            break;
+          case 'addBot': {
+            const used = new Set(g.players.map((p) => p.name));
+            const name = BOT_NAMES.map((n) => `Bot ${n}`).find((n) => !used.has(n)) || `Bot ${g.players.length + 1}`;
+            kahoot.addPlayer(g, { name, isBot: true });
+            break;
+          }
+          case 'config':
+            if (g.status !== 'lobby') throw new Error('Ustawienia można zmieniać tylko przed startem');
+            g.config = sanitizeKahootConfig(body.config, g.config);
+            break;
+          case 'end':
+            if (g.status === 'running') kahoot.finish(g, now, 'Gra zakończona przez prowadzącego');
+            break;
+          default:
+            throw new Error('Nieznana akcja prowadzącego');
+        }
         touch(g);
         return res.json({ success: true, version: g.version });
       }
@@ -678,6 +766,11 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
     try {
       if (g.format === fam.FORMAT_ID && body.action !== 'photo' && body.action !== 'removePhoto') {
         fam.memberAction(g, player, body, now);
+        touch(g);
+        return res.json({ success: true, version: g.version });
+      }
+      if (g.format === kahoot.FORMAT_ID && body.action === 'answer') {
+        kahoot.submitAnswer(g, player.id, body.value, now);
         touch(g);
         return res.json({ success: true, version: g.version });
       }

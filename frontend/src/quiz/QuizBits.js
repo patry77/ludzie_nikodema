@@ -114,7 +114,7 @@ const ytCommand = (frame, func, args = []) => {
   }
 };
 
-export const TvMedia = ({ media, link, qid, mediaCmd, start = 0, end = 0 }) => {
+export const TvMedia = ({ media, link, qid, mediaCmd, start = 0, end = 0, paused = false }) => {
   const frameRef = useRef(null);
   const lastN = useRef(mediaCmd ? mediaCmd.n : 0);
   const emb = youtubeEmbedUrl(link, 'autoplay=1&controls=0&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&disablekb=1&fs=0&enablejsapi=1' + (start ? `&start=${start}` : '') + (end ? `&end=${end}` : ''));
@@ -132,6 +132,16 @@ export const TvMedia = ({ media, link, qid, mediaCmd, start = 0, end = 0 }) => {
       ytCommand(f, 'playVideo');
     }
   }, [mediaCmd, qid, start]);
+
+  // pauza gry wstrzymuje tez film (np. w Kahoot); po wznowieniu gra dalej
+  const firstPause = useRef(true);
+  useEffect(() => {
+    if (firstPause.current) {
+      firstPause.current = false;
+      if (!paused) return;
+    }
+    if (frameRef.current) ytCommand(frameRef.current, paused ? 'pauseVideo' : 'playVideo');
+  }, [paused]);
 
   if (!emb) return null;
   return (

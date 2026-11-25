@@ -14,6 +14,10 @@ import FamTv from '../familiada/FamTv';
 import FamHost from '../familiada/FamHost';
 import FamPlayer, { FamJoinForm } from '../familiada/FamPlayer';
 import { FamiliadaCard, FamiliadaQuestionEditor, FamiliadaSoundTester } from '../familiada/FamPages';
+import KahootTv from '../kahoot/KahootTv';
+import KahootHost from '../kahoot/KahootHost';
+import KahootPlayer from '../kahoot/KahootPlayer';
+import { KahootCard } from '../kahoot/KahootPages';
 import { api, clearStoredPlayer, getStoredPlayer, hasAdminSession, setStoredPlayer, useGameState } from './quizApi';
 
 const fieldSx = {
@@ -250,7 +254,7 @@ const GamesList = ({ reloadKey }) => {
             <Box key={g.code} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', p: 1.5, borderRadius: '14px', background: 'rgba(255,255,255,0.06)' }}>
               <Typography sx={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.5rem', color: 'var(--gold)', letterSpacing: 3 }}>{g.code}</Typography>
               <Typography sx={{ color: 'var(--ink-dim)', flex: 1, minWidth: 160 }}>
-                {g.format === 'familiada' ? `Familiada · ${statusLabel[g.status]} · ${(g.teams || []).join(' vs ')}` : `1 z 10 · ${statusLabel[g.status]} · ${g.players} graczy`}{g.test ? ' · test' : ''}
+                {g.format === 'familiada' ? `Familiada · ${statusLabel[g.status]} · ${(g.teams || []).join(' vs ')}` : g.format === 'kahoot' ? `Kahoot · ${statusLabel[g.status]} · ${g.players} graczy` : `1 z 10 · ${statusLabel[g.status]} · ${g.players} graczy`}{g.test ? ' · test' : ''}
               </Typography>
               {g.test && <Button size="small" component={Link} to={`/teleturniej/gra/${g.code}/test`} sx={{ color: 'var(--gold)' }}>Konsola testowa</Button>}
               <Button size="small" component={Link} to={`/teleturniej/gra/${g.code}/prowadzacy`} sx={{ color: 'var(--gold)' }}>Prowadzący</Button>
@@ -307,13 +311,15 @@ const SoundTester = () => {
 const FORMAT_TABS = [
   { id: 'jeden-z-dziesieciu', label: '1 z 10' },
   { id: 'familiada', label: 'Familiada' },
+  { id: 'kahoot', label: 'Kahoot' },
 ];
 
 export const QuizHubPage = () => {
   const [reloadKey, setReloadKey] = useState(0);
   const [format, setFormat] = useState(() => {
     try {
-      return sessionStorage.getItem('quizHubFormat') === 'familiada' ? 'familiada' : 'jeden-z-dziesieciu';
+      const saved = sessionStorage.getItem('quizHubFormat');
+      return saved === 'familiada' || saved === 'kahoot' ? saved : 'jeden-z-dziesieciu';
     } catch (e) {
       return 'jeden-z-dziesieciu';
     }
@@ -345,14 +351,20 @@ export const QuizHubPage = () => {
             </Button>
           ))}
         </Box>
-        {format === 'familiada' ? <FamiliadaCard onCreated={() => setReloadKey((k) => k + 1)} /> : <FormatCard onCreated={() => setReloadKey((k) => k + 1)} />}
+        {format === 'familiada' ? (
+          <FamiliadaCard onCreated={() => setReloadKey((k) => k + 1)} />
+        ) : format === 'kahoot' ? (
+          <KahootCard onCreated={() => setReloadKey((k) => k + 1)} />
+        ) : (
+          <FormatCard onCreated={() => setReloadKey((k) => k + 1)} />
+        )}
         <GamesList reloadKey={reloadKey} />
         {format === 'familiada' ? (
           <>
             <FamiliadaQuestionEditor />
             <FamiliadaSoundTester />
           </>
-        ) : (
+        ) : format === 'kahoot' ? null : (
           <SoundTester />
         )}
       </Container>
@@ -389,7 +401,7 @@ const HostInner = ({ code }) => {
   const { act, busy, error, setError } = useHostActions(code);
   if (loadError && !state) return <GameError error={loadError} />;
   if (!state) return <Loading />;
-  const HostView = state.format === 'familiada' ? FamHost : GameHost;
+  const HostView = state.format === 'familiada' ? FamHost : state.format === 'kahoot' ? KahootHost : GameHost;
   return (
     <Container maxWidth="xl" sx={{ py: { xs: 3, md: 5 }, position: 'relative', zIndex: 20 }}>
       <StageBackdrop variant="soft" />
@@ -404,6 +416,7 @@ export const TvPage = () => {
   const { state, error, offsetRef } = useGameState({ code: code.toUpperCase(), role: 'tv', interval: 800 });
   if (error && !state) return <GameError error={error} />;
   if (!state) return <Loading />;
+  if (state.format === 'kahoot') return <KahootTv state={state} offsetRef={offsetRef} />;
   return state.format === 'familiada' ? <FamTv state={state} offsetRef={offsetRef} /> : <GameTv state={state} offsetRef={offsetRef} />;
 };
 
@@ -479,7 +492,7 @@ export const PlayerPage = () => {
         <StageBackdrop variant="soft" />
         <Box component="form" onSubmit={join} className="glass pop-in" sx={{ p: 4, display: 'grid', gap: 2.5, textAlign: 'center' }}>
           <Typography sx={{ fontSize: '2.6rem' }} aria-hidden="true">🎤</Typography>
-          <Typography variant="h4" className="gold-text">1 z 10</Typography>
+          <Typography variant="h4" className="gold-text">{preview && preview.format === 'kahoot' ? 'Kahoot' : '1 z 10'}</Typography>
           <Typography sx={{ color: 'var(--ink-dim)' }}>Gra <strong style={{ color: 'var(--gold)', letterSpacing: 3 }}>{code}</strong> – wpisz swoje imię, żeby dołączyć.</Typography>
           <Box sx={{ display: 'flex', justifyContent: 'center' }}>
             <Avatar src={photo} size={96} player={photo ? null : { seat: '?', name: name || 'gracz' }} />
@@ -530,6 +543,14 @@ const PlayerInner = ({ code, stored, onLost }) => {
         <StageBackdrop variant="soft" />
         {introBox}
         <FamPlayer state={state} offsetRef={offsetRef} act={act} busy={busy} error={error} onResetError={() => setError('')} />
+      </>
+    );
+  }
+  if (state.format === 'kahoot') {
+    return (
+      <>
+        {introBox}
+        <KahootPlayer state={state} offsetRef={offsetRef} act={act} busy={busy} error={error} onResetError={() => setError('')} />
       </>
     );
   }
@@ -602,10 +623,12 @@ const TestInner = ({ code }) => {
     })();
   }, [code]);
   if (!format) return <Loading />;
-  return format === 'familiada' ? <FamTestInner code={code} /> : <TestInnerOne code={code} />;
+  return format === 'familiada' ? <FamTestInner code={code} /> : <TestInnerOne code={code} format={format} />;
 };
 
-const TestInnerOne = ({ code }) => {
+const TestInnerOne = ({ code, format }) => {
+  const HostC = format === 'kahoot' ? KahootHost : GameHost;
+  const PlayerC = format === 'kahoot' ? KahootPlayer : GamePlayer;
   const host = useGameState({ code, role: 'host', interval: 700 });
   const hostActions = useHostActions(code);
 
@@ -642,7 +665,7 @@ const TestInnerOne = ({ code }) => {
       </Box>
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: 'minmax(0, 1.5fr) minmax(0, 1fr)' }, gap: 3, alignItems: 'start' }}>
-        <GameHost
+        <HostC
           state={host.state}
           offsetRef={host.offsetRef}
           act={hostActions.act}
@@ -666,7 +689,7 @@ const TestInnerOne = ({ code }) => {
               {phone.state && phone.state.you ? (
                 <Box sx={{ ml: { xs: 0 } }}>
                   {phone.state.intro && phone.state.intro.presenterId === phone.state.you.id && <IntroPhone code={code} intro={phone.state.intro} as={effectiveAs} />}
-                  <GamePlayer state={phone.state} offsetRef={phone.offsetRef} act={phoneActions.act} busy={phoneActions.busy} error={phoneActions.error} onResetError={() => phoneActions.setError('')} />
+                  <PlayerC state={phone.state} offsetRef={phone.offsetRef} act={phoneActions.act} busy={phoneActions.busy} error={phoneActions.error} onResetError={() => phoneActions.setError('')} />
                 </Box>
               ) : (
                 <Loading text="Ładowanie telefonu..." />
