@@ -4,10 +4,11 @@ import { Avatar } from '../quiz/Avatar';
 
 // Kolory i znaki odpowiedzi jak w Kahoot: A czerwony trojkat, B niebieski romb, C zolty kolo, D zielony kwadrat
 export const K = {
-  a: { bg: 'linear-gradient(180deg, #f0344f, #b8112b)', solid: '#e21b3c', shape: '▲' },
-  b: { bg: 'linear-gradient(180deg, #2a86ee, #0e56a6)', solid: '#1368ce', shape: '◆' },
-  c: { bg: 'linear-gradient(180deg, #f2b51a, #b07f00)', solid: '#d89e00', shape: '●' },
-  d: { bg: 'linear-gradient(180deg, #34a812, #1b6307)', solid: '#26890c', shape: '■' },
+  // fg = kolor tekstu dobrany tak, zeby kontrast byl czytelny (zolty ma ciemny tekst)
+  a: { bg: 'linear-gradient(180deg, #d6203b, #a30f26)', solid: '#c4152f', shape: '▲', fg: '#ffffff' },
+  b: { bg: 'linear-gradient(180deg, #2272d8, #0e4a95)', solid: '#1368ce', shape: '◆', fg: '#ffffff' },
+  c: { bg: 'linear-gradient(180deg, #f7c53a, #e0a300)', solid: '#f2b51a', shape: '●', fg: '#1a1205' },
+  d: { bg: 'linear-gradient(180deg, #2d9a10, #1b6307)', solid: '#26890c', shape: '■', fg: '#ffffff' },
 };
 export const LETTERS = ['a', 'b', 'c', 'd'];
 
@@ -94,7 +95,7 @@ export const RoundHighlights = ({ state, results, compact = false }) => {
             <Box key={l} sx={{ textAlign: 'center', opacity: good ? 1 : 0.6 }}>
               <Typography sx={{ fontWeight: 800, fontSize: 'inherit' }}>{results.distribution[l]}</Typography>
               <Box sx={{ height: h, background: K[l].bg, borderRadius: '8px 8px 0 0', border: good ? '3px solid #fff' : '3px solid transparent', boxShadow: good ? '0 0 18px rgba(125,255,157,0.8)' : 'none' }} />
-              <Typography sx={{ fontWeight: 800, background: K[l].solid, borderRadius: '0 0 8px 8px', fontSize: 'inherit', px: 0.5 }}>
+              <Typography sx={{ fontWeight: 800, background: K[l].solid, color: K[l].fg, borderRadius: '0 0 8px 8px', fontSize: 'inherit', px: 0.5 }}>
                 {K[l].shape} {good ? '✔' : ''}
               </Typography>
             </Box>

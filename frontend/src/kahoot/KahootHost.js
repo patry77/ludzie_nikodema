@@ -128,7 +128,7 @@ const KahootHost = ({ state, offsetRef, act, busy, error, onResetError }) => {
               {LETTERS.map((l) => {
                 const good = (c.status === 'results' ? c.results.correct : c.correct) === l;
                 return (
-                  <Box key={l} sx={{ display: 'flex', gap: 1, alignItems: 'center', p: 1.25, borderRadius: '10px', background: K[l].bg, outline: good ? '4px solid #fff' : 'none', opacity: good ? 1 : 0.85 }}>
+                  <Box key={l} sx={{ display: 'flex', gap: 1, alignItems: 'center', p: 1.25, borderRadius: '10px', background: K[l].bg, color: K[l].fg, outline: good ? '4px solid #fff' : 'none', opacity: good ? 1 : 0.9 }}>
                     <span>{K[l].shape}</span>
                     <span style={{ fontWeight: 600 }}>{c.question.options[l]}{good ? ' ✔' : ''}</span>
                   </Box>

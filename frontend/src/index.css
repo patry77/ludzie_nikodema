@@ -514,3 +514,29 @@ code {
     animation: none !important;
   }
 }
+
+
+/* Czytelnosc na ciemnych stronach (wszystko poza "legacy" bialymi kartami):
+   CssBaseline MUI ustawia czarny kolor tekstu body, wiec tekst bez wlasnego koloru byl czarny na ciemnym tle.
+   Karty/Paper MUI ustawiaja wlasny kolor, wiec biale powierzchnie dalej maja ciemny tekst. */
+body main:not(.legacy-surface) {
+  color: var(--ink);
+}
+
+/* Wylaczone przyciski na ciemnym tle: domyslne szare 26% czerni jest niewidoczne */
+body main:not(.legacy-surface) .MuiButton-root.Mui-disabled {
+  color: rgba(255, 255, 255, 0.55);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+body main:not(.legacy-surface) .MuiButton-contained.Mui-disabled {
+  background-color: rgba(255, 255, 255, 0.14);
+}
+
+/* Czerwone przyciski (Usun, Zakoncz gre) - jasniejszy odcien, zeby byly czytelne na ciemnym tle */
+body main:not(.legacy-surface) .MuiButton-outlinedError,
+body main:not(.legacy-surface) .MuiButton-textError {
+  color: #ff9b9b;
+}
+body main:not(.legacy-surface) .MuiButton-outlinedError {
+  border-color: rgba(255, 155, 155, 0.6);
+}

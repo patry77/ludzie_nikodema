@@ -174,7 +174,7 @@ const TeleturniejPage = () => {
     >
       <Box>
         <Typography sx={{ fontWeight: 800, fontSize: '1.05rem', lineHeight: 1.2 }}>{label}</Typography>
-        <Typography sx={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.75)' }}>{hint}</Typography>
+        <Typography sx={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.95)' }}>{hint}</Typography>
       </Box>
     </HexBar>
   );

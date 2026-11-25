@@ -182,7 +182,7 @@ const FamPlayer = ({ state, offsetRef, act, busy, error, onResetError }) => {
           onClick={() => act('buzz')}
           disabled={busy || state.paused}
           className="glow-pulse"
-          sx={{ py: 5, fontSize: '2rem', fontWeight: 900, borderRadius: '28px', color: '#fff', background: `radial-gradient(circle at 50% 30%, ${color.light}, ${color.main} 55%, ${color.dark})`, border: '4px solid #fff', boxShadow: `0 0 40px ${color.glow}` }}
+          sx={{ py: 5, fontSize: '2rem', fontWeight: 900, borderRadius: '28px', color: '#fff', background: `radial-gradient(circle at 50% 30%, ${color.light}, ${color.main} 55%, ${color.dark})`, border: '4px solid #fff', textShadow: '0 2px 8px rgba(0,0,0,0.65)', boxShadow: `0 0 40px ${color.glow}` }}
         >
           🔔 ZGŁASZAM SIĘ!
         </Button>

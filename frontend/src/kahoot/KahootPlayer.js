@@ -99,7 +99,7 @@ const KahootPlayer = ({ state, offsetRef, act, busy, error, onResetError }) => {
                       textAlign: 'left',
                       cursor: 'pointer',
                       font: 'inherit',
-                      color: '#fff',
+                      color: K[l].fg,
                       fontWeight: 700,
                       fontSize: '1.1rem',
                       border: '3px solid rgba(255,255,255,0.4)',

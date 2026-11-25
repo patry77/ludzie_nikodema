@@ -55,6 +55,7 @@ const AnswerTile = ({ letter, text }) => (
       px: 'clamp(10px, 1.4vw, 28px)',
       borderRadius: '14px',
       background: K[letter].bg,
+      color: K[letter].fg,
       border: '3px solid rgba(255,255,255,0.35)',
       boxShadow: '0 4px 14px rgba(0,0,0,0.35)',
     }}
