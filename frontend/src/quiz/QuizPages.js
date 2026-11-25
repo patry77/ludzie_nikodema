@@ -18,7 +18,23 @@ import KahootTv from '../kahoot/KahootTv';
 import KahootHost from '../kahoot/KahootHost';
 import KahootPlayer from '../kahoot/KahootPlayer';
 import { KahootCard } from '../kahoot/KahootPages';
+import OgniwoTv from '../ogniwo/OgniwoTv';
+import OgniwoHost from '../ogniwo/OgniwoHost';
+import OgniwoPlayer from '../ogniwo/OgniwoPlayer';
+import { OgniwoCard } from '../ogniwo/OgniwoPages';
+import KlamczuchTv from '../klamczuch/KlamczuchTv';
+import KlamczuchHost from '../klamczuch/KlamczuchHost';
+import KlamczuchPlayer from '../klamczuch/KlamczuchPlayer';
+import { KlamczuchCard } from '../klamczuch/KlamczuchPages';
 import { api, clearStoredPlayer, getStoredPlayer, hasAdminSession, setStoredPlayer, useGameState } from './quizApi';
+
+// Nazwy trybow (lista gier, ekran dolaczania) i komponenty widokow dla trybow "imprezowych"
+const FORMAT_NAMES = { 'jeden-z-dziesieciu': '1 z 10', familiada: 'Familiada', kahoot: 'Kahoot', ogniwo: 'Najsłabsze ogniwo', klamczuch: 'Kłamczuch' };
+const PARTY_VIEWS = {
+  kahoot: { Host: KahootHost, Player: KahootPlayer, Tv: KahootTv },
+  ogniwo: { Host: OgniwoHost, Player: OgniwoPlayer, Tv: OgniwoTv },
+  klamczuch: { Host: KlamczuchHost, Player: KlamczuchPlayer, Tv: KlamczuchTv },
+};
 
 const fieldSx = {
   '& .MuiOutlinedInput-root': { color: 'var(--ink)', background: 'rgba(255,255,255,0.08)', borderRadius: '14px', '& fieldset': { borderColor: 'rgba(var(--accent-rgb),0.45)' } },
@@ -254,7 +270,7 @@ const GamesList = ({ reloadKey }) => {
             <Box key={g.code} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', p: 1.5, borderRadius: '14px', background: 'rgba(255,255,255,0.06)' }}>
               <Typography sx={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.5rem', color: 'var(--gold)', letterSpacing: 3 }}>{g.code}</Typography>
               <Typography sx={{ color: 'var(--ink-dim)', flex: 1, minWidth: 160 }}>
-                {g.format === 'familiada' ? `Familiada · ${statusLabel[g.status]} · ${(g.teams || []).join(' vs ')}` : g.format === 'kahoot' ? `Kahoot · ${statusLabel[g.status]} · ${g.players} graczy` : `1 z 10 · ${statusLabel[g.status]} · ${g.players} graczy`}{g.test ? ' · test' : ''}
+                {g.format === 'familiada' ? `Familiada · ${statusLabel[g.status]} · ${(g.teams || []).join(' vs ')}` : `${FORMAT_NAMES[g.format] || '1 z 10'} · ${statusLabel[g.status]} · ${g.players} graczy`}{g.test ? ' · test' : ''}
               </Typography>
               {g.test && <Button size="small" component={Link} to={`/teleturniej/gra/${g.code}/test`} sx={{ color: 'var(--gold)' }}>Konsola testowa</Button>}
               <Button size="small" component={Link} to={`/teleturniej/gra/${g.code}/prowadzacy`} sx={{ color: 'var(--gold)' }}>Prowadzący</Button>
@@ -312,6 +328,8 @@ const FORMAT_TABS = [
   { id: 'jeden-z-dziesieciu', label: '1 z 10' },
   { id: 'familiada', label: 'Familiada' },
   { id: 'kahoot', label: 'Kahoot' },
+  { id: 'ogniwo', label: 'Najsłabsze ogniwo' },
+  { id: 'klamczuch', label: 'Kłamczuch' },
 ];
 
 export const QuizHubPage = () => {
@@ -319,7 +337,7 @@ export const QuizHubPage = () => {
   const [format, setFormat] = useState(() => {
     try {
       const saved = sessionStorage.getItem('quizHubFormat');
-      return saved === 'familiada' || saved === 'kahoot' ? saved : 'jeden-z-dziesieciu';
+      return FORMAT_TABS.some((t) => t.id === saved) ? saved : 'jeden-z-dziesieciu';
     } catch (e) {
       return 'jeden-z-dziesieciu';
     }
@@ -355,6 +373,10 @@ export const QuizHubPage = () => {
           <FamiliadaCard onCreated={() => setReloadKey((k) => k + 1)} />
         ) : format === 'kahoot' ? (
           <KahootCard onCreated={() => setReloadKey((k) => k + 1)} />
+        ) : format === 'ogniwo' ? (
+          <OgniwoCard onCreated={() => setReloadKey((k) => k + 1)} />
+        ) : format === 'klamczuch' ? (
+          <KlamczuchCard onCreated={() => setReloadKey((k) => k + 1)} />
         ) : (
           <FormatCard onCreated={() => setReloadKey((k) => k + 1)} />
         )}
@@ -364,7 +386,9 @@ export const QuizHubPage = () => {
             <FamiliadaQuestionEditor />
             <FamiliadaSoundTester />
           </>
-        ) : format === 'kahoot' ? null : (
+        ) : format === 'kahoot' || format === 'ogniwo' ? null : format === 'klamczuch' ? (
+          <FamiliadaQuestionEditor />
+        ) : (
           <SoundTester />
         )}
       </Container>
@@ -401,7 +425,7 @@ const HostInner = ({ code }) => {
   const { act, busy, error, setError } = useHostActions(code);
   if (loadError && !state) return <GameError error={loadError} />;
   if (!state) return <Loading />;
-  const HostView = state.format === 'familiada' ? FamHost : state.format === 'kahoot' ? KahootHost : GameHost;
+  const HostView = state.format === 'familiada' ? FamHost : PARTY_VIEWS[state.format] ? PARTY_VIEWS[state.format].Host : GameHost;
   return (
     <Container maxWidth="xl" sx={{ py: { xs: 3, md: 5 }, position: 'relative', zIndex: 20 }}>
       <StageBackdrop variant="soft" />
@@ -416,7 +440,10 @@ export const TvPage = () => {
   const { state, error, offsetRef } = useGameState({ code: code.toUpperCase(), role: 'tv', interval: 800 });
   if (error && !state) return <GameError error={error} />;
   if (!state) return <Loading />;
-  if (state.format === 'kahoot') return <KahootTv state={state} offsetRef={offsetRef} />;
+  if (PARTY_VIEWS[state.format]) {
+    const PartyTv = PARTY_VIEWS[state.format].Tv;
+    return <PartyTv state={state} offsetRef={offsetRef} />;
+  }
   return state.format === 'familiada' ? <FamTv state={state} offsetRef={offsetRef} /> : <GameTv state={state} offsetRef={offsetRef} />;
 };
 
@@ -492,7 +519,7 @@ export const PlayerPage = () => {
         <StageBackdrop variant="soft" />
         <Box component="form" onSubmit={join} className="glass pop-in" sx={{ p: 4, display: 'grid', gap: 2.5, textAlign: 'center' }}>
           <Typography sx={{ fontSize: '2.6rem' }} aria-hidden="true">🎤</Typography>
-          <Typography variant="h4" className="gold-text">{preview && preview.format === 'kahoot' ? 'Kahoot' : '1 z 10'}</Typography>
+          <Typography variant="h4" className="gold-text">{(preview && FORMAT_NAMES[preview.format]) || '1 z 10'}</Typography>
           <Typography sx={{ color: 'var(--ink-dim)' }}>Gra <strong style={{ color: 'var(--gold)', letterSpacing: 3 }}>{code}</strong> – wpisz swoje imię, żeby dołączyć.</Typography>
           <Box sx={{ display: 'flex', justifyContent: 'center' }}>
             <Avatar src={photo} size={96} player={photo ? null : { seat: '?', name: name || 'gracz' }} />
@@ -546,11 +573,12 @@ const PlayerInner = ({ code, stored, onLost }) => {
       </>
     );
   }
-  if (state.format === 'kahoot') {
+  if (PARTY_VIEWS[state.format]) {
+    const PartyPlayer = PARTY_VIEWS[state.format].Player;
     return (
       <>
         {introBox}
-        <KahootPlayer state={state} offsetRef={offsetRef} act={act} busy={busy} error={error} onResetError={() => setError('')} />
+        <PartyPlayer state={state} offsetRef={offsetRef} act={act} busy={busy} error={error} onResetError={() => setError('')} />
       </>
     );
   }
@@ -627,8 +655,8 @@ const TestInner = ({ code }) => {
 };
 
 const TestInnerOne = ({ code, format }) => {
-  const HostC = format === 'kahoot' ? KahootHost : GameHost;
-  const PlayerC = format === 'kahoot' ? KahootPlayer : GamePlayer;
+  const HostC = PARTY_VIEWS[format] ? PARTY_VIEWS[format].Host : GameHost;
+  const PlayerC = PARTY_VIEWS[format] ? PARTY_VIEWS[format].Player : GamePlayer;
   const host = useGameState({ code, role: 'host', interval: 700 });
   const hostActions = useHostActions(code);
 

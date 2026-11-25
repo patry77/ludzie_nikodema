@@ -10,6 +10,8 @@ const { SAMPLE_QUESTIONS } = require('./sampleQuestions');
 const { MUSIC_QUESTIONS } = require('./musicQuestions');
 const fam = require('./familiada');
 const kahoot = require('./kahoot');
+const ogniwo = require('./ogniwo');
+const klamczuch = require('./klamczuch');
 const { FAMILIADA_SAMPLE_QUESTIONS } = require('./familiadaQuestions');
 const crypto = require('crypto');
 
@@ -26,7 +28,8 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
   const FAM_QUESTIONS_FILE = path.join(dataDir, 'familiada-questions.json');
   let saveTimer = null;
   // Kazdy format ma wlasny silnik o tym samym interfejsie (tick / viewFor)
-  const engineOf = (g) => (g.format === fam.FORMAT_ID ? fam : g.format === kahoot.FORMAT_ID ? kahoot : engine);
+  const ENGINES = { [fam.FORMAT_ID]: fam, [kahoot.FORMAT_ID]: kahoot, [ogniwo.FORMAT_ID]: ogniwo, [klamczuch.FORMAT_ID]: klamczuch };
+  const engineOf = (g) => ENGINES[g.format] || engine;
 
   // ---------- Zapis / odczyt ----------
   function load() {
@@ -122,6 +125,29 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
     if (!input || typeof input !== 'object') return c;
     if (input.questionSeconds !== undefined) c.questionSeconds = num(input.questionSeconds, 5, 120, c.questionSeconds);
     if (input.totalQuestions !== undefined) c.totalQuestions = Math.round(num(input.totalQuestions, 3, 50, c.totalQuestions));
+    if (input.botAccuracy !== undefined) c.botAccuracy = num(input.botAccuracy, 0.05, 0.98, c.botAccuracy);
+    if (input.botSpeed !== undefined) c.botSpeed = num(input.botSpeed, 0.05, 3, c.botSpeed || 1);
+    return c;
+  }
+
+  function sanitizeOgniwoConfig(input, base) {
+    const c = { ...base };
+    if (!input || typeof input !== 'object') return c;
+    if (input.roundSeconds !== undefined) c.roundSeconds = num(input.roundSeconds, 30, 300, c.roundSeconds);
+    if (input.roundShrink !== undefined) c.roundShrink = num(input.roundShrink, 0, 30, c.roundShrink);
+    if (input.answerSeconds !== undefined) c.answerSeconds = num(input.answerSeconds, 5, 60, c.answerSeconds);
+    if (input.voteSeconds !== undefined) c.voteSeconds = num(input.voteSeconds, 10, 180, c.voteSeconds);
+    if (input.duelQuestions !== undefined) c.duelQuestions = Math.round(num(input.duelQuestions, 2, 10, c.duelQuestions));
+    if (input.botAccuracy !== undefined) c.botAccuracy = num(input.botAccuracy, 0.05, 0.98, c.botAccuracy);
+    if (input.botSpeed !== undefined) c.botSpeed = num(input.botSpeed, 0.05, 3, c.botSpeed || 1);
+    return c;
+  }
+
+  function sanitizeKlamczuchConfig(input, base) {
+    const c = { ...base };
+    if (!input || typeof input !== 'object') return c;
+    if (input.answerSeconds !== undefined) c.answerSeconds = num(input.answerSeconds, 8, 90, c.answerSeconds);
+    if (input.voteSeconds !== undefined) c.voteSeconds = num(input.voteSeconds, 15, 240, c.voteSeconds);
     if (input.botAccuracy !== undefined) c.botAccuracy = num(input.botAccuracy, 0.05, 0.98, c.botAccuracy);
     if (input.botSpeed !== undefined) c.botSpeed = num(input.botSpeed, 0.05, 3, c.botSpeed || 1);
     return c;
@@ -385,6 +411,20 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
         defaults: kahoot.DEFAULT_CONFIG,
       },
       {
+        id: ogniwo.FORMAT_ID,
+        label: 'Najsłabsze ogniwo',
+        minPlayers: ogniwo.MIN_PLAYERS,
+        maxPlayers: ogniwo.MAX_PLAYERS,
+        defaults: ogniwo.DEFAULT_CONFIG,
+      },
+      {
+        id: klamczuch.FORMAT_ID,
+        label: 'Kłamczuch',
+        minPlayers: klamczuch.MIN_PLAYERS,
+        maxPlayers: klamczuch.MAX_PLAYERS,
+        defaults: klamczuch.DEFAULT_CONFIG,
+      },
+      {
         id: fam.FORMAT_ID,
         label: 'Familiada',
         minPlayers: 0,
@@ -432,6 +472,53 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
         games.set(fgame.code, fgame);
         saveSoon();
         return res.json({ code: fgame.code, test: testFam, playerId: famTester ? famTester.id : null, token: famTester ? famTester.token : null });
+      }
+      if (body.format === ogniwo.FORMAT_ID) {
+        const otest = !!body.test;
+        const osource = body.source === 'bank' ? 'bank' : 'sample';
+        const oexclude = body.inside === false;
+        let opool;
+        if (osource === 'bank') {
+          const data = await readQuestions();
+          opool = toEnginePool((data.questions || []).filter((q) => !q.link && !(oexclude && q.inside)));
+        } else {
+          opool = toEnginePool(SAMPLE_QUESTIONS.filter((q) => !q.link));
+        }
+        if (opool.length < 10) return fail(res, 400, `W puli jest za mało pytań bez filmów i muzyki (${opool.length}, potrzeba co najmniej 10).`);
+        const obase = otest ? { ...ogniwo.DEFAULT_CONFIG, roundSeconds: 45, minRoundSeconds: 25, answerSeconds: 10, voteSeconds: 20 } : { ...ogniwo.DEFAULT_CONFIG };
+        const ogame = ogniwo.createGame({
+          code: newCode(),
+          test: otest,
+          source: osource,
+          insideIncluded: osource === 'bank' ? !oexclude : null,
+          pool: opool,
+          config: sanitizeOgniwoConfig(body.config, obase),
+        });
+        let otester = null;
+        if (otest) {
+          otester = ogniwo.addPlayer(ogame, { name: 'Ty (test)', isBot: false });
+          for (let i = 0; i < 5; i++) ogniwo.addPlayer(ogame, { name: `Bot ${BOT_NAMES[i]}`, isBot: true });
+        }
+        games.set(ogame.code, ogame);
+        saveSoon();
+        return res.json({ code: ogame.code, test: otest, playerId: otester ? otester.id : null, token: otester ? otester.token : null });
+      }
+      if (body.format === klamczuch.FORMAT_ID) {
+        const ctest = !!body.test;
+        const csrc = ['custom', 'all'].includes(body.source) ? body.source : 'sample';
+        const ccustom = readFamQuestions();
+        const cpool = csrc === 'custom' ? ccustom : csrc === 'all' ? [...FAMILIADA_SAMPLE_QUESTIONS, ...ccustom] : FAMILIADA_SAMPLE_QUESTIONS;
+        if (cpool.length < 8) return fail(res, 400, `W puli jest za mało pytań (${cpool.length}, potrzeba co najmniej 8). Dodaj własne pytania Familiady albo użyj wbudowanej puli.`);
+        const cbase = ctest ? { ...klamczuch.DEFAULT_CONFIG, answerSeconds: 15, voteSeconds: 25 } : { ...klamczuch.DEFAULT_CONFIG };
+        const cgame = klamczuch.createGame({ code: newCode(), test: ctest, source: csrc, pool: cpool, config: sanitizeKlamczuchConfig(body.config, cbase) });
+        let ctester = null;
+        if (ctest) {
+          ctester = klamczuch.addPlayer(cgame, { name: 'Ty (test)', isBot: false });
+          for (let i = 0; i < 5; i++) klamczuch.addPlayer(cgame, { name: `Bot ${BOT_NAMES[i]}`, isBot: true });
+        }
+        games.set(cgame.code, cgame);
+        saveSoon();
+        return res.json({ code: cgame.code, test: ctest, playerId: ctester ? ctester.id : null, token: ctester ? ctester.token : null });
       }
       if (body.format === kahoot.FORMAT_ID) {
         const ktest = !!body.test;
@@ -569,7 +656,7 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
         touch(g);
         return res.json({ playerId: pf.id, token: pf.token, name: pf.name, team: pf.team });
       }
-      const p = (g.format === kahoot.FORMAT_ID ? kahoot : engine).addPlayer(g, { name: req.body && req.body.name, isBot: false });
+      const p = engineOf(g).addPlayer(g, { name: req.body && req.body.name, isBot: false });
       touch(g);
       res.json({ playerId: p.id, token: p.token, seat: p.seat, name: p.name });
     } catch (error) {
@@ -608,6 +695,61 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
             /* nie bylo zdjecia */
           }
         } else fam.hostAction(g, body, now);
+        touch(g);
+        return res.json({ success: true, version: g.version });
+      }
+      if (g.format === ogniwo.FORMAT_ID || g.format === klamczuch.FORMAT_ID) {
+        const E = engineOf(g);
+        const isOg = g.format === ogniwo.FORMAT_ID;
+        switch (body.action) {
+          case 'start':
+            E.start(g, now);
+            break;
+          case 'next':
+            E.advance(g, now);
+            break;
+          case 'pause':
+            E.pause(g, now);
+            break;
+          case 'resume':
+            E.resume(g, now);
+            break;
+          case 'kick':
+            E.removePlayer(g, body.playerId);
+            break;
+          case 'addBot': {
+            const used = new Set(g.players.map((p) => p.name));
+            const name = BOT_NAMES.map((n) => `Bot ${n}`).find((n) => !used.has(n)) || `Bot ${g.players.length + 1}`;
+            E.addPlayer(g, { name, isBot: true });
+            break;
+          }
+          case 'config':
+            if (g.status !== 'lobby') throw new Error('Ustawienia można zmieniać tylko przed startem');
+            g.config = isOg ? sanitizeOgniwoConfig(body.config, g.config) : sanitizeKlamczuchConfig(body.config, g.config);
+            break;
+          case 'judge':
+            if (!isOg) throw new Error('Nieznana akcja prowadzącego');
+            E.judge(g, !!body.correct, now);
+            break;
+          case 'bank':
+            if (!isOg) throw new Error('Nieznana akcja prowadzącego');
+            if (g.phase !== 'round' || !g.r || !g.r.cur) throw new Error('Teraz nie można bankować');
+            E.bank(g, g.r.cur.playerId, now);
+            break;
+          case 'skip':
+            if (isOg) E.skipQuestion(g, now);
+            else E.swapQuestion(g, now);
+            break;
+          case 'mark':
+            if (isOg) throw new Error('Nieznana akcja prowadzącego');
+            E.mark(g, body.idx === undefined ? null : body.idx, now);
+            break;
+          case 'end':
+            if (g.status === 'running') E.finish(g, now, 'Gra zakończona przez prowadzącego');
+            break;
+          default:
+            throw new Error('Nieznana akcja prowadzącego');
+        }
         touch(g);
         return res.json({ success: true, version: g.version });
       }
@@ -766,6 +908,18 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
     try {
       if (g.format === fam.FORMAT_ID && body.action !== 'photo' && body.action !== 'removePhoto') {
         fam.memberAction(g, player, body, now);
+        touch(g);
+        return res.json({ success: true, version: g.version });
+      }
+      if (g.format === ogniwo.FORMAT_ID && ['answer', 'bank', 'vote'].includes(body.action)) {
+        if (body.action === 'answer') ogniwo.submitAnswer(g, player.id, body.value, now);
+        else if (body.action === 'bank') ogniwo.bank(g, player.id, now);
+        else ogniwo.vote(g, player.id, body.targetId, now);
+        touch(g);
+        return res.json({ success: true, version: g.version });
+      }
+      if (g.format === klamczuch.FORMAT_ID && body.action === 'vote') {
+        klamczuch.vote(g, player.id, body.targetId, now);
         touch(g);
         return res.json({ success: true, version: g.version });
       }
