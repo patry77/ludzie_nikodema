@@ -179,7 +179,7 @@ function drawQuestion(game) {
 }
 
 function publicQuestion(q) {
-  const out = { id: q.id, typ: q.typ, pytanie: q.pytanie, media: q.media || null, link: q.link || null };
+  const out = { id: q.id, typ: q.typ, pytanie: q.pytanie, media: q.media || null, link: q.link || null, start: q.start || 0, end: q.end || 0 };
   if (q.typ === 'abcd') out.options = { a: q.odp_a, b: q.odp_b, c: q.odp_c, d: q.odp_d };
   return out;
 }
@@ -375,7 +375,10 @@ function submitAnswer(game, playerId, value, now) {
     const letter = String(value || '').toLowerCase();
     if (!['a', 'b', 'c', 'd'].includes(letter)) throw new Error('Wybierz odpowiedź A, B, C lub D');
     c.answer = { playerId, value: letter, at: now };
-    reveal(game, letter === q.poprawna_odpowiedz, now);
+    // Zamkniete tez zatwierdza prowadzacy: TV pokazuje zaznaczona litere, a wynik dopiero po zatwierdzeniu
+    c.suggestion = letter === q.poprawna_odpowiedz ? 'correct' : 'wrong';
+    c.status = 'judging';
+    c.deadline = null;
     return;
   }
 
@@ -413,6 +416,13 @@ function judge(game, correct, now) {
   const c = game.current;
   if (game.status !== 'running' || !c || c.status !== 'judging') throw new Error('Brak odpowiedzi do oceny');
   reveal(game, !!correct, now);
+}
+
+// Zatwierdzenie odpowiedzi zamknietej (ABCD): wynik liczy system, prowadzacy tylko go odslania
+function approve(game, now) {
+  const c = game.current;
+  if (game.status !== 'running' || !c || c.status !== 'judging' || c.q.typ !== 'abcd' || !c.answer) throw new Error('Brak odpowiedzi do zatwierdzenia');
+  reveal(game, c.answer.value === c.q.poprawna_odpowiedz, now);
 }
 
 function designate(game, byPlayerId, targetId, now) {
@@ -733,7 +743,7 @@ function viewFor(game, role, player, now) {
       result: c.result,
       // wybrana odpowiedz jest widoczna dla prowadzacego od razu, dla pozostalych dopiero po ujawnieniu wyniku
       answer: c.answer
-        ? { playerId: c.answer.playerId, voice: !!c.answer.voice, value: showSecrets ? c.answer.value : null, given: true }
+        ? { playerId: c.answer.playerId, voice: !!c.answer.voice, value: showSecrets || (c.q.typ === 'abcd' && c.status === 'judging') ? c.answer.value : null, given: true }
         : null,
       advanceAt: c.advanceAt,
     };
@@ -787,6 +797,7 @@ module.exports = {
   submitAnswer,
   buzz,
   judge,
+  approve,
   designate,
   advance,
   replaceQuestion,

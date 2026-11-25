@@ -181,7 +181,17 @@ const GameHost = ({ state, offsetRef, act, busy, error, onResetError }) => {
             )}
 
             <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mt: 2.5 }}>
-              {c && c.status === 'judging' && (
+              {c && c.status === 'judging' && c.question.typ === 'abcd' && (
+                <>
+                  <Button variant="contained" color="success" size="large" onClick={() => act('approve')} disabled={busy}>
+                    ✔ Zatwierdź odpowiedź
+                  </Button>
+                  <Typography sx={{ alignSelf: 'center', color: 'var(--ink-dim)', fontSize: '0.85rem' }}>
+                    Gracz zaznaczył {c.answer && c.answer.value ? c.answer.value.toUpperCase() : '?'} – TV pokazuje zaznaczenie, wynik pojawi się po zatwierdzeniu
+                  </Typography>
+                </>
+              )}
+              {c && c.status === 'judging' && c.question.typ !== 'abcd' && (
                 <>
                   <Button variant="contained" color="success" size="large" onClick={() => act('judge', { correct: true })} disabled={busy}
                     sx={{ outline: c.suggestion === 'correct' ? '3px solid #fff' : 'none' }}>

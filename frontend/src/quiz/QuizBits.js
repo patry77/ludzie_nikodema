@@ -9,12 +9,13 @@ const BORDER_RED = 'linear-gradient(180deg, #ffb4b4, #d63a3a)';
 const FILL_BLUE = 'linear-gradient(180deg, #0b1a73 0%, #050f46 100%)';
 const FILL_GREEN = 'linear-gradient(180deg, #11994a 0%, #0a6b33 100%)';
 const FILL_RED = 'linear-gradient(180deg, #b32a2a 0%, #7a1414 100%)';
+const FILL_PICKED = 'linear-gradient(180deg, #c78a12 0%, #8a5a06 100%)';
 
 // Szesciokatny pasek w stylu teleturnieju (zlota ramka + wypelnienie): "state" = 'default' | 'good' | 'bad'
 export const HexBar = ({ selected = false, state, minHeight = 56, onClick, children, component, px, ...rest }) => {
   const st = state || (selected ? 'good' : 'default');
   const border = st === 'good' ? BORDER_GREEN : st === 'bad' ? BORDER_RED : BORDER_GOLD;
-  const fill = st === 'good' ? FILL_GREEN : st === 'bad' ? FILL_RED : FILL_BLUE;
+  const fill = st === 'good' ? FILL_GREEN : st === 'bad' ? FILL_RED : st === 'picked' ? FILL_PICKED : FILL_BLUE;
   return (
     <Box
       component={component}
@@ -113,10 +114,10 @@ const ytCommand = (frame, func, args = []) => {
   }
 };
 
-export const TvMedia = ({ media, link, qid, mediaCmd }) => {
+export const TvMedia = ({ media, link, qid, mediaCmd, start = 0, end = 0 }) => {
   const frameRef = useRef(null);
   const lastN = useRef(mediaCmd ? mediaCmd.n : 0);
-  const emb = youtubeEmbedUrl(link, 'autoplay=1&controls=0&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&disablekb=1&fs=0&enablejsapi=1');
+  const emb = youtubeEmbedUrl(link, 'autoplay=1&controls=0&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&disablekb=1&fs=0&enablejsapi=1' + (start ? `&start=${start}` : '') + (end ? `&end=${end}` : ''));
   const isMusic = media !== 'wideo';
 
   useEffect(() => {
@@ -127,14 +128,16 @@ export const TvMedia = ({ media, link, qid, mediaCmd }) => {
     if (mediaCmd.cmd === 'pause') ytCommand(f, 'pauseVideo');
     else if (mediaCmd.cmd === 'play') ytCommand(f, 'playVideo');
     else if (mediaCmd.cmd === 'restart') {
-      ytCommand(f, 'seekTo', [0, true]);
+      ytCommand(f, 'seekTo', [start, true]);
       ytCommand(f, 'playVideo');
     }
-  }, [mediaCmd, qid]);
+  }, [mediaCmd, qid, start]);
 
   if (!emb) return null;
   return (
-    <Box sx={{ mt: 2, position: 'relative', paddingTop: '56.25%', borderRadius: '16px', overflow: 'hidden', border: '2px solid var(--gold)', maxWidth: 760, mx: 'auto', background: '#000' }}>
+    <Box sx={{ mt: 'clamp(6px, 1.2vh, 16px)', flex: '1 1 0', minHeight: 44, display: 'flex', justifyContent: 'center' }}>
+    <Box sx={{ position: 'relative', height: '100%', maxWidth: '100%', borderRadius: '16px', overflow: 'hidden', border: '2px solid var(--gold)', background: '#000' }}>
+      <svg viewBox="0 0 16 9" aria-hidden="true" style={{ height: '100%', width: 'auto', maxWidth: '100%', display: 'block', visibility: 'hidden' }} />
       <iframe
         ref={frameRef}
         title="Multimedia do pytania"
@@ -153,6 +156,7 @@ export const TvMedia = ({ media, link, qid, mediaCmd }) => {
           <Box sx={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '12%', background: '#000' }} />
         </>
       )}
+    </Box>
     </Box>
   );
 };
@@ -207,15 +211,15 @@ export const QuestionPanel = ({ current, size = 'phone', hostPreview = false, on
   const big = size === 'tv';
 
   return (
-    <Box>
-      <HexBar minHeight={big ? 120 : 84} px={{ xs: 4, sm: 6 }}>
-        <Typography sx={{ fontWeight: 600, fontSize: big ? 'clamp(1.4rem, 2.6vw, 3rem)' : { xs: '1.1rem', sm: '1.25rem' }, lineHeight: 1.3, py: 1.5, width: '100%', textAlign: 'center' }}>
+    <Box sx={big ? { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, height: '100%' } : undefined}>
+      <HexBar minHeight={big ? 'clamp(56px, 11vh, 120px)' : 84} px={{ xs: 4, sm: 6 }}>
+        <Typography sx={{ fontWeight: 600, fontSize: big ? 'clamp(1.1rem, min(2.6vw, 4.4vh), 3rem)' : { xs: '1.1rem', sm: '1.25rem' }, lineHeight: 1.3, py: 1.5, width: '100%', textAlign: 'center' }}>
           {q.pytanie}
         </Typography>
       </HexBar>
 
       {q.link && big && youtubeEmbedUrl(q.link) ? (
-        <TvMedia key={q.id} media={q.media} link={q.link} qid={q.id} mediaCmd={mediaCmd} />
+        <TvMedia key={q.id} media={q.media} link={q.link} qid={q.id} mediaCmd={mediaCmd} start={q.start || 0} end={q.end || 0} />
       ) : q.link && size === 'phone' && youtubeEmbedUrl(q.link) ? (
         <Box sx={{ mt: 2, textAlign: 'center', color: 'var(--gold)', fontWeight: 700 }}>
           {q.media === 'wideo' ? '🎬 Film leci na ekranie TV' : '🎵 Utwór leci na ekranie TV'}
@@ -225,21 +229,24 @@ export const QuestionPanel = ({ current, size = 'phone', hostPreview = false, on
       )}
 
       {q.typ === 'abcd' && q.options && (
-        <Box sx={{ mt: 2, display: 'grid', gridTemplateColumns: { xs: '1fr', md: big ? '1fr 1fr' : '1fr' }, gap: 1.25 }}>
+        <Box sx={{ mt: big ? 'clamp(6px, 1.2vh, 16px)' : 2, display: 'grid', gridTemplateColumns: { xs: '1fr', md: big ? '1fr 1fr' : '1fr' }, gap: big ? 'clamp(6px, 1vh, 12px)' : 1.25 }}>
           {LETTERS.map((l) => {
             let state = 'default';
             if (revealed || hostPreview) {
               if (correctLetter === l) state = 'good';
               else if (revealed && answeredLetter === l) state = 'bad';
+              else if (!revealed && answeredLetter === l) state = 'picked';
+            } else if (answeredLetter === l) {
+              state = 'picked';
             } else if (pickedLetter === l) {
               state = 'good';
             }
             const content = (
               <>
-                <Box component="span" sx={{ color: 'var(--primary-light)', fontWeight: 800, mr: 1.5, minWidth: 28, fontSize: big ? 'clamp(1.2rem, 2vw, 2.2rem)' : '1.15rem' }}>
+                <Box component="span" sx={{ color: 'var(--primary-light)', fontWeight: 800, mr: 1.5, minWidth: 28, fontSize: big ? 'clamp(1rem, min(2vw, 3.6vh), 2.2rem)' : '1.15rem' }}>
                   {l.toUpperCase()}:
                 </Box>
-                <Box component="span" sx={{ fontSize: big ? 'clamp(1.1rem, 1.9vw, 2rem)' : '1.05rem', fontWeight: 500 }}>
+                <Box component="span" sx={{ fontSize: big ? 'clamp(0.95rem, min(1.9vw, 3.4vh), 2rem)' : '1.05rem', fontWeight: 500 }}>
                   {q.options[l]}
                 </Box>
               </>
@@ -249,7 +256,7 @@ export const QuestionPanel = ({ current, size = 'phone', hostPreview = false, on
                 {content}
               </HexBar>
             ) : (
-              <HexBar key={l} state={state} minHeight={big ? 72 : 52}>
+              <HexBar key={l} state={state} minHeight={big ? 'clamp(40px, 7vh, 72px)' : 52}>
                 {content}
               </HexBar>
             );
@@ -348,7 +355,7 @@ export const describeNow = (state) => {
     if (c.result && c.result.correct === false) return 'Zła odpowiedź';
     return 'Nikt się nie zgłosił';
   }
-  if (c.status === 'judging') return 'Prowadzący ocenia odpowiedź...';
+  if (c.status === 'judging') return c.question && c.question.typ === 'abcd' ? 'Odpowiedź zaznaczona – czekamy na zatwierdzenie prowadzącego...' : 'Prowadzący ocenia odpowiedź...';
   if (c.kind === 'single') return `Pytanie dla: ${target}`;
   if (c.status === 'answering') return `${playerName(state, c.buzzerId)} odpowiada`;
   return 'Kto pierwszy się zgłosi?';

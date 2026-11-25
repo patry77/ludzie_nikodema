@@ -150,6 +150,10 @@ const TvPodiums = ({ state }) => {
         position: 'relative',
         zIndex: 2,
         pt: 'clamp(8px, 1vh, 16px)',
+        // niski ekran (np. TV w 720p): stanowiska mniejsze, zeby pytanie i film mialy miejsce
+        '@media (max-height: 1100px)': { zoom: 0.75 },
+        '@media (max-height: 800px)': { zoom: 0.65 },
+        '@media (max-height: 600px)': { zoom: 0.55 },
       }}
     >
       {state.players.map((p, i) => {

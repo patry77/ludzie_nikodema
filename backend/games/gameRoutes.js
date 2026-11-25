@@ -180,6 +180,8 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
       alt: q.alt || [],
       media: q.media || null,
       link: q.link || null,
+      start: q.start || 0,
+      end: q.end || 0,
     }));
 
   const getGame = (code) => games.get(String(code || '').toUpperCase());
@@ -406,7 +408,7 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
       }
 
       const baseConfig = test
-        ? { ...engine.DEFAULT_CONFIG, autoAdvanceSeconds: 4, answerSeconds: 15 }
+        ? { ...engine.DEFAULT_CONFIG, autoAdvanceSeconds: 0, answerSeconds: 15 }
         : { ...engine.DEFAULT_CONFIG };
       const game = engine.createGame({
         code: newCode(),
@@ -542,6 +544,9 @@ module.exports = function registerGameRoutes({ app, isAdminRequest, readQuestion
           break;
         case 'judge':
           engine.judge(g, !!body.correct, now);
+          break;
+        case 'approve':
+          engine.approve(g, now);
           break;
         case 'skip':
           engine.replaceQuestion(g, now);

@@ -380,6 +380,22 @@ app.post('/api/questions', async (req, res) => {
       }
       question.media = media;
       question.link = parsed.href;
+      // Fragment do odtwarzania w grze (sekundy): opcjonalnie od / do
+      const sec = (v) => {
+        if (v === undefined || v === null || v === '') return 0;
+        const n = Number(v);
+        return Number.isFinite(n) && n >= 0 && n <= 36000 ? Math.floor(n) : NaN;
+      };
+      const start = sec(body.start);
+      const end = sec(body.end);
+      if (Number.isNaN(start) || Number.isNaN(end)) {
+        return res.status(400).json({ error: 'Niepoprawny czas początku lub końca fragmentu' });
+      }
+      if (end && end <= start) {
+        return res.status(400).json({ error: 'Koniec fragmentu musi być późniejszy niż początek' });
+      }
+      if (start) question.start = start;
+      if (end) question.end = end;
     }
 
     if (typ === 'abcd') {

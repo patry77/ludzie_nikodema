@@ -213,6 +213,7 @@ const GameTv = ({ state, offsetRef }) => {
     <Box
       sx={{
         minHeight: '100vh',
+        ...(state.status === 'running' ? { height: '100vh', overflow: 'hidden' } : {}),
         display: 'flex',
         flexDirection: 'column',
         p: 'clamp(12px, 2vh, 32px) clamp(16px, 2.4vw, 56px)',
@@ -261,7 +262,7 @@ const GameTv = ({ state, offsetRef }) => {
       {state.status === 'lobby' && state.intro && <IntroTv code={state.code} intro={state.intro} />}
       {state.status === 'finished' && state.result && <Winner state={state} colors={confettiColors} />}
       {state.status === 'running' && (
-        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 'clamp(10px, 1.6vh, 22px)', maxWidth: 1500, width: '100%', mx: 'auto', position: 'relative' }}>
+        <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 'clamp(6px, 1.2vh, 22px)', maxWidth: 1500, width: '100%', mx: 'auto', position: 'relative' }}>
           <Typography
             key={`msg-${qKey}-${c ? c.status : ''}`}
             className="pop-in"
@@ -274,7 +275,7 @@ const GameTv = ({ state, offsetRef }) => {
           {showTimer && <TimerBar left={left} total={timerTotal(state)} />}
 
           {c && (
-            <Box key={qKey} className={`pop-in ${revealedBad ? 'shake' : ''}`}>
+            <Box key={qKey} className={`pop-in ${revealedBad ? 'shake' : ''}`} sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
               <QuestionPanel current={c} size="tv" mediaCmd={state.mediaCmd} />
             </Box>
           )}
@@ -297,7 +298,7 @@ const GameTv = ({ state, offsetRef }) => {
 
       {/* Przebieg gry */}
       {state.status === 'running' && state.log.length > 0 && (
-        <Typography sx={{ textAlign: 'center', color: 'var(--ink-dim)', fontSize: 'clamp(0.8rem, 1.2vw, 1.4rem)', position: 'relative' }}>
+        <Typography sx={{ textAlign: 'center', color: 'var(--ink-dim)', fontSize: 'clamp(0.8rem, 1.2vw, 1.4rem)', position: 'relative', '@media (max-height: 800px)': { display: 'none' } }}>
           {state.log[state.log.length - 1].text}
         </Typography>
       )}

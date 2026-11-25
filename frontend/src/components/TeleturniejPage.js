@@ -69,7 +69,15 @@ const SectionLabel = ({ children }) => (
   </Typography>
 );
 
-const emptyForm = { pytanie: '', odp_a: '', odp_b: '', odp_c: '', odp_d: '', poprawna_litera: '', poprawna_tekst: '', link: '' };
+const emptyForm = { pytanie: '', odp_a: '', odp_b: '', odp_c: '', odp_d: '', poprawna_litera: '', poprawna_tekst: '', link: '', start: '', end: '' };
+
+// "1:23", "83" lub "0:01:05" -> sekundy; puste = 0; blad = NaN
+const parseTime = (v) => {
+  const s = String(v || '').trim();
+  if (!s) return 0;
+  if (!/^\d+(:\d{1,2}){0,2}$/.test(s)) return NaN;
+  return s.split(':').reduce((acc, p) => acc * 60 + Number(p), 0);
+};
 
 // Podstrona /teleturniej (motyw teleturniejowy ustawia ThemeContext). Na razie tylko formularz dodawania pytan.
 const TeleturniejPage = () => {
@@ -94,6 +102,10 @@ const TeleturniejPage = () => {
         ok = false;
       }
       if (!ok) return 'Podaj poprawny link (zaczynający się od http:// lub https://).';
+      const st = parseTime(form.start);
+      const en = parseTime(form.end);
+      if (Number.isNaN(st) || Number.isNaN(en)) return 'Czas początku i końca wpisz jako m:ss (np. 1:25) lub w sekundach.';
+      if (en && en <= st) return 'Koniec fragmentu musi być późniejszy niż początek.';
     }
     if (typ === 'abcd') {
       for (const l of LETTERS) {
@@ -131,6 +143,8 @@ const TeleturniejPage = () => {
       if (media) {
         payload.media = media;
         payload.link = form.link.trim();
+        payload.start = parseTime(form.start);
+        payload.end = parseTime(form.end);
       }
       const response = await fetch(`${API_URL}/questions`, {
         method: 'POST',
@@ -231,6 +245,23 @@ const TeleturniejPage = () => {
                   sx={inputSx}
                 />
               </HexBar>
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5, mt: 1.5 }}>
+                <Box>
+                  <SectionLabel>Fragment od (opcjonalnie)</SectionLabel>
+                  <HexBar>
+                    <InputBase value={form.start} onChange={set('start')} placeholder="np. 1:25 lub 85" inputProps={{ 'aria-label': 'Początek fragmentu', maxLength: 9 }} sx={inputSx} />
+                  </HexBar>
+                </Box>
+                <Box>
+                  <SectionLabel>Fragment do (opcjonalnie)</SectionLabel>
+                  <HexBar>
+                    <InputBase value={form.end} onChange={set('end')} placeholder="np. 1:45 lub 105" inputProps={{ 'aria-label': 'Koniec fragmentu', maxLength: 9 }} sx={inputSx} />
+                  </HexBar>
+                </Box>
+              </Box>
+              <Typography sx={{ color: 'var(--ink-dim)', fontSize: '0.85rem', mt: 1 }}>
+                Podaj, jeśli w grze ma zagrać tylko wycinek (np. refren). Puste = od początku do końca.
+              </Typography>
             </Box>
           )}
 

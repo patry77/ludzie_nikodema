@@ -33,4 +33,14 @@ const MUSIC_QUESTIONS = [
   song(20, 'sOnqjkJTMaA', 'Który artysta wykonuje „Thriller”?', 'Prince', 'Michael Jackson', 'Lionel Richie', 'Stevie Wonder', 'b', 'wideo'),
 ];
 
+// Przykladowe fragmenty [od, do] w sekundach - pokazuja dzialanie wycinka na TV
+const SEGMENTS = { 1: [60, 80], 3: [40, 60], 5: [30, 50], 6: [25, 45], 7: [20, 40], 9: [45, 65], 11: [30, 50], 13: [30, 50], 14: [50, 70], 16: [40, 60], 17: [45, 65], 19: [30, 50] };
+MUSIC_QUESTIONS.forEach((q) => {
+  const seg = SEGMENTS[Number(String(q.id).replace('music-', ''))];
+  if (seg) {
+    q.start = seg[0];
+    q.end = seg[1];
+  }
+});
+
 module.exports = { MUSIC_QUESTIONS };
