@@ -164,7 +164,7 @@ const GameHost = ({ state, offsetRef, act, busy, error, onResetError }) => {
             {c && (
               <>
                 <QuestionPanel current={c} size="host" hostPreview embedMedia={false} />
-                {c.question.link && <MediaRemote media={c.question.media} act={act} busy={busy} />}
+                {c.question.link && c.question.media !== 'zdjecie' && <MediaRemote media={c.question.media} act={act} busy={busy} />}
                 {c.question.typ !== 'abcd' && c.correct && (
                   <Alert severity="info" sx={{ mt: 2 }} icon={false}>
                     <strong>Poprawna odpowiedź (tylko dla prowadzącego):</strong> {c.correct.text}

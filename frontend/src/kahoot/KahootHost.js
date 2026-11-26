@@ -135,7 +135,7 @@ const KahootHost = ({ state, offsetRef, act, busy, error, onResetError }) => {
                 );
               })}
             </Box>
-            {c.question.link && <Typography variant="body2" sx={{ mt: 1.5, color: 'var(--ink-dim)' }}>{c.question.media === 'wideo' ? '🎬 Film' : '🎵 Utwór'} gra automatycznie na ekranie TV.</Typography>}
+            {c.question.link && <Typography variant="body2" sx={{ mt: 1.5, color: 'var(--ink-dim)' }}>{c.question.media === 'wideo' ? '🎬 Film gra' : c.question.media === 'zdjecie' ? '📷 Zdjęcie jest' : '🎵 Utwór gra'} automatycznie na ekranie TV.</Typography>}
 
             {c.status === 'results' && c.results && (
               <Box sx={{ mt: 3 }}>

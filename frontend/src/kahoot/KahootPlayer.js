@@ -79,7 +79,7 @@ const KahootPlayer = ({ state, offsetRef, act, busy, error, onResetError }) => {
               <Typography sx={{ textAlign: 'center', fontWeight: 700, fontSize: '1.1rem', lineHeight: 1.3 }}>{c.question.pytanie}</Typography>
               {c.question.link && (
                 <Typography sx={{ textAlign: 'center', color: 'var(--gold)', fontWeight: 700 }}>
-                  {c.question.media === 'wideo' ? '🎬 Film leci na ekranie TV' : '🎵 Utwór leci na ekranie TV'}
+                  {c.question.media === 'wideo' ? '🎬 Film leci na ekranie TV' : c.question.media === 'zdjecie' ? '📷 Zdjęcie jest na ekranie TV' : '🎵 Utwór leci na ekranie TV'}
                 </Typography>
               )}
               <Box sx={{ display: 'grid', gap: 1.25 }}>

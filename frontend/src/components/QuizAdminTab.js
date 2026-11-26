@@ -22,10 +22,12 @@ import {
 } from '@mui/material';
 import {
   Delete as DeleteIcon,
+  Edit as EditIcon,
   Refresh as RefreshIcon,
   Visibility as VisibilityIcon,
   VisibilityOff as VisibilityOffIcon,
 } from '@mui/icons-material';
+import { isOwnMedia, mediaIcon, ownMediaSrc, uploadMediaFile } from '../quiz/quizApi';
 
 const API_URL = process.env.REACT_APP_API_URL || '/api';
 const PAGE_SIZE = 15;
@@ -34,6 +36,15 @@ const LETTERS = ['a', 'b', 'c', 'd'];
 const authHeaders = () => ({ 'x-admin-password': sessionStorage.getItem('adminPass') || '' });
 
 const isHttpLink = (link) => /^https?:\/\//i.test(link || '');
+
+// sekundy -> "m:ss" (do pol edycji); "1:23" / "83" -> sekundy (NaN gdy zly zapis)
+const fmtTime = (sec) => (sec ? `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}` : '');
+const parseTime = (v) => {
+  const s = String(v || '').trim();
+  if (!s) return 0;
+  if (!/^\d+(:\d{1,2}){0,2}$/.test(s)) return NaN;
+  return s.split(':').reduce((acc, p) => acc * 60 + Number(p), 0);
+};
 
 const formatDate = (iso) => {
   try {
@@ -60,6 +71,108 @@ const QuizAdminTab = () => {
   const [mediaFilter, setMediaFilter] = useState('all');
   const [insideFilter, setInsideFilter] = useState('all');
   const [page, setPage] = useState(1);
+
+  // Edycja pytania: odpowiedzi sa w oknie ukryte, dopoki admin ich nie odslonie
+  const [editing, setEditing] = useState(null); // edytowane pytanie (bez odpowiedzi)
+  const [ef, setEf] = useState(null); // pola formularza edycji
+  const [efAnswers, setEfAnswers] = useState(false); // czy odpowiedzi sa odslonieta w oknie
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState('');
+  const [editError, setEditError] = useState('');
+  const fileRef = React.useRef(null);
+
+  const openEdit = (q) => {
+    setEditing(q);
+    setEf({ pytanie: q.pytanie, media: q.media || '', link: q.link || '', start: fmtTime(q.start), end: fmtTime(q.end), odp_a: '', odp_b: '', odp_c: '', odp_d: '', poprawna: '' });
+    setEfAnswers(false);
+    setEditError('');
+  };
+
+  const closeEdit = () => {
+    if (saving || uploading) return;
+    setEditing(null);
+    setEf(null);
+    setEfAnswers(false);
+  };
+
+  const setField = (key) => (e) => setEf((f) => ({ ...f, [key]: e.target.value }));
+
+  // Odslania odpowiedzi w oknie edycji (pobiera je z serwera dopiero teraz)
+  const revealInEdit = async () => {
+    setEditError('');
+    try {
+      let full = answers[editing.id];
+      if (!full) {
+        const all = await fetchAnswers();
+        full = all[editing.id];
+      }
+      if (!full) throw new Error('Nie udało się pobrać odpowiedzi');
+      setEf((f) => ({ ...f, odp_a: full.odp_a || '', odp_b: full.odp_b || '', odp_c: full.odp_c || '', odp_d: full.odp_d || '', poprawna: full.poprawna_odpowiedz || '' }));
+      setEfAnswers(true);
+    } catch (e) {
+      setEditError(e.message);
+    }
+  };
+
+  const uploadFile = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploading(true);
+    setEditError('');
+    const res = await uploadMediaFile(file, setUploadStatus);
+    setUploading(false);
+    if (!res.ok) {
+      setEditError(res.data.error || 'Nie udało się wgrać pliku');
+      return;
+    }
+    // rodzaj multimediow dopasowujemy do wgranego pliku
+    setEf((f) => ({ ...f, media: res.data.media, link: res.data.url }));
+  };
+
+  const saveEdit = async () => {
+    const st = parseTime(ef.start);
+    const en = parseTime(ef.end);
+    if (!ef.pytanie.trim()) return setEditError('Wpisz treść pytania.');
+    if (ef.media && !ef.link.trim()) return setEditError('Podaj link albo wgraj plik (albo wybierz „Bez multimediów”).');
+    if (ef.media !== 'zdjecie' && ef.media && (Number.isNaN(st) || Number.isNaN(en))) return setEditError('Czas początku i końca wpisz jako m:ss (np. 1:25) lub w sekundach.');
+    if (ef.media !== 'zdjecie' && en && en <= st) return setEditError('Koniec fragmentu musi być późniejszy niż początek.');
+    const body = { pytanie: ef.pytanie.trim(), media: ef.media };
+    if (ef.media) {
+      body.link = ef.link.trim();
+      if (ef.media !== 'zdjecie') {
+        body.start = st;
+        body.end = en;
+      }
+    }
+    if (efAnswers) {
+      if (editing.typ === 'abcd') {
+        Object.assign(body, { odp_a: ef.odp_a, odp_b: ef.odp_b, odp_c: ef.odp_c, odp_d: ef.odp_d, poprawna_odpowiedz: ef.poprawna });
+      } else {
+        body.poprawna_odpowiedz = ef.poprawna;
+      }
+    }
+    setSaving(true);
+    setEditError('');
+    try {
+      const response = await fetch(`${API_URL}/questions/${editing.id}`, {
+        method: 'PATCH',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Nie udało się zapisać zmian');
+      setEditing(null);
+      setEf(null);
+      setEfAnswers(false);
+      await load();
+    } catch (e) {
+      setEditError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const fetchList = useCallback(async () => {
     const response = await fetch(`${API_URL}/questions`, { headers: authHeaders() });
@@ -106,6 +219,7 @@ const QuizAdminTab = () => {
       otwarte: questions.filter((q) => q.typ === 'otwarte').length,
       muzyka: questions.filter((q) => q.media === 'muzyka').length,
       wideo: questions.filter((q) => q.media === 'wideo').length,
+      zdjecie: questions.filter((q) => q.media === 'zdjecie').length,
       inside: questions.filter((q) => q.inside).length,
     }),
     [questions]
@@ -116,7 +230,7 @@ const QuizAdminTab = () => {
     return questions.filter((q) => {
       if (typFilter !== 'all' && q.typ !== typFilter) return false;
       if (mediaFilter === 'none' && q.media) return false;
-      if ((mediaFilter === 'muzyka' || mediaFilter === 'wideo') && q.media !== mediaFilter) return false;
+      if ((mediaFilter === 'muzyka' || mediaFilter === 'wideo' || mediaFilter === 'zdjecie') && q.media !== mediaFilter) return false;
       if (insideFilter === 'inside' && !q.inside) return false;
       if (insideFilter === 'ogolne' && q.inside) return false;
       if (needle && !q.pytanie.toLowerCase().includes(needle)) return false;
@@ -256,6 +370,7 @@ const QuizAdminTab = () => {
             <Chip label={`Otwarte: ${stats.otwarte}`} />
             <Chip label={`🎵 Muzyczne: ${stats.muzyka}`} />
             <Chip label={`🎬 Wideo: ${stats.wideo}`} />
+            <Chip label={`📷 Zdjęcia: ${stats.zdjecie}`} />
             <Chip color="warning" label={`inside: ${stats.inside}`} />
           </Box>
 
@@ -282,6 +397,7 @@ const QuizAdminTab = () => {
                 <MenuItem value="none">Bez multimediów</MenuItem>
                 <MenuItem value="muzyka">🎵 Muzyczne</MenuItem>
                 <MenuItem value="wideo">🎬 Wideo</MenuItem>
+                <MenuItem value="zdjecie">📷 Zdjęcia</MenuItem>
               </Select>
             </FormControl>
             <FormControl size="small">
@@ -326,21 +442,29 @@ const QuizAdminTab = () => {
                       <Chip size="small" color={q.typ === 'abcd' ? 'primary' : 'secondary'} label={q.typ === 'abcd' ? 'ABCD' : 'Otwarte'} />
                       {q.media === 'muzyka' && <Chip size="small" label="🎵 Muzyczne" />}
                       {q.media === 'wideo' && <Chip size="small" label="🎬 Wideo" />}
+                      {q.media === 'zdjecie' && <Chip size="small" label="📷 Zdjęcie" />}
+                      {q.link && isOwnMedia(q.link) && <Chip size="small" variant="outlined" label="własny plik" />}
                       {q.inside && <Chip size="small" color="warning" label="inside" />}
                       <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                         {formatDate(q.dodano)}
                       </Typography>
                     </Box>
                     <Typography sx={{ fontWeight: 600, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{q.pytanie}</Typography>
+                    {q.media === 'zdjecie' && q.link && (
+                      <Box sx={{ mt: 1 }}>
+                        <img src={ownMediaSrc(q.link)} alt="Zdjęcie do pytania" loading="lazy" style={{ maxWidth: '100%', maxHeight: 140, borderRadius: 8, border: '1px solid rgba(0,0,0,0.2)' }} />
+                      </Box>
+                    )}
                     {q.link && (
                       <Typography variant="body2" sx={{ mt: 0.75, wordBreak: 'break-all' }}>
-                        {isHttpLink(q.link) ? (
-                          <a href={q.link} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--secondary)', textDecoration: 'underline' }}>
-                            {q.media === 'wideo' ? '🎬' : '🎵'} {q.link}
+                        {isHttpLink(q.link) || isOwnMedia(q.link) ? (
+                          <a href={ownMediaSrc(q.link)} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--secondary)', textDecoration: 'underline' }}>
+                            {mediaIcon(q.media)} {isOwnMedia(q.link) ? 'wgrany plik' : q.link}
                           </a>
                         ) : (
                           q.link
                         )}
+                        {(q.start || q.end) ? ` · fragment ${fmtTime(q.start) || '0:00'}–${fmtTime(q.end) || 'koniec'}` : ''}
                       </Typography>
                     )}
                     {isRevealed(q.id) && renderAnswers(q)}
@@ -360,6 +484,9 @@ const QuizAdminTab = () => {
                           <VisibilityIcon />
                         </IconButton>
                       ))}
+                    <IconButton aria-label="Edytuj pytanie" title="Edytuj pytanie" onClick={() => openEdit(q)}>
+                      <EditIcon />
+                    </IconButton>
                     <IconButton aria-label="Usuń pytanie" title="Usuń pytanie" onClick={() => removeQuestion(q)} className="text-red-500">
                       <DeleteIcon />
                     </IconButton>
@@ -391,6 +518,106 @@ const QuizAdminTab = () => {
           </Typography>
         </Box>
       )}
+
+      {/* Edycja pytania */}
+      <Dialog open={!!editing} onClose={closeEdit} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ background: 'linear-gradient(120deg, var(--primary-dark), var(--primary))', color: '#fff6e5', fontFamily: 'var(--font-display)', fontWeight: 700 }}>
+          Edycja pytania
+        </DialogTitle>
+        <DialogContent sx={{ pt: '24px !important' }}>
+          {editing && ef && (
+            <Box sx={{ display: 'grid', gap: 2, mt: 1 }}>
+              {editError && <Alert severity="error" onClose={() => setEditError('')}>{editError}</Alert>}
+              <TextField label="Treść pytania" value={ef.pytanie} onChange={setField('pytanie')} multiline minRows={2} fullWidth inputProps={{ maxLength: 500 }} />
+
+              <FormControl size="small" fullWidth>
+                <InputLabel id="edit-media-label">Multimedia</InputLabel>
+                <Select labelId="edit-media-label" label="Multimedia" value={ef.media} onChange={(e) => setEf((f) => ({ ...f, media: e.target.value }))}>
+                  <MenuItem value="">Bez multimediów</MenuItem>
+                  <MenuItem value="muzyka">🎵 Muzyka</MenuItem>
+                  <MenuItem value="wideo">🎬 Wideo</MenuItem>
+                  <MenuItem value="zdjecie">📷 Zdjęcie</MenuItem>
+                </Select>
+              </FormControl>
+
+              {ef.media && (
+                <Box sx={{ display: 'grid', gap: 1.5 }}>
+                  <TextField
+                    size="small"
+                    label="Link (http/https) albo wgrany plik"
+                    value={ef.link}
+                    onChange={setField('link')}
+                    helperText={isOwnMedia(ef.link) ? 'Wgrany plik – możesz go zastąpić linkiem albo innym plikiem.' : 'Adres z internetu (np. YouTube) albo użyj przycisku poniżej.'}
+                    fullWidth
+                    inputProps={{ maxLength: 300 }}
+                  />
+                  <Box>
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      hidden
+                      accept={ef.media === 'zdjecie' ? 'image/*' : ef.media === 'wideo' ? 'video/mp4,video/webm' : 'audio/*,.mp3,.m4a,.ogg,.wav'}
+                      onChange={uploadFile}
+                      aria-label="Wgraj plik"
+                    />
+                    <Button variant="outlined" onClick={() => fileRef.current && fileRef.current.click()} disabled={uploading}>
+                      {uploading ? uploadStatus || 'Wgrywanie…' : '📁 Wgraj własny plik'}
+                    </Button>
+                  </Box>
+                  {ef.link && ef.media === 'zdjecie' && (
+                    <img src={ownMediaSrc(ef.link)} alt="Podgląd zdjęcia" style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8, border: '1px solid rgba(0,0,0,0.2)' }} />
+                  )}
+                  {ef.media !== 'zdjecie' && (
+                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
+                      <TextField size="small" label="Fragment od (np. 1:25)" value={ef.start} onChange={setField('start')} inputProps={{ maxLength: 9 }} />
+                      <TextField size="small" label="Fragment do (np. 1:45)" value={ef.end} onChange={setField('end')} inputProps={{ maxLength: 9 }} />
+                    </Box>
+                  )}
+                </Box>
+              )}
+
+              <Box sx={{ p: 1.5, borderRadius: '10px', border: '1px dashed rgba(0,0,0,0.3)' }}>
+                {!efAnswers ? (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                    <Typography variant="body2" sx={{ color: 'text.secondary', flex: 1, minWidth: 200 }}>
+                      Odpowiedzi są ukryte (nie są nawet pobierane). Pokaż je tylko, jeśli chcesz je zmienić.
+                    </Typography>
+                    <Button variant="outlined" startIcon={<VisibilityIcon />} onClick={revealInEdit}>
+                      Pokaż i edytuj odpowiedzi
+                    </Button>
+                  </Box>
+                ) : (
+                  <Box sx={{ display: 'grid', gap: 1.5 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography sx={{ fontWeight: 700 }}>Odpowiedzi</Typography>
+                      <Button size="small" startIcon={<VisibilityOffIcon />} onClick={() => setEfAnswers(false)}>Ukryj (bez zmian)</Button>
+                    </Box>
+                    {editing.typ === 'abcd' ? (
+                      <>
+                        {LETTERS.map((l) => (
+                          <TextField key={l} size="small" label={`Odpowiedź ${l.toUpperCase()}${ef.poprawna === l ? ' ✔ poprawna' : ''}`} value={ef[`odp_${l}`]} onChange={setField(`odp_${l}`)} fullWidth inputProps={{ maxLength: 200 }} />
+                        ))}
+                        <FormControl size="small" fullWidth>
+                          <InputLabel id="edit-correct-label">Poprawna odpowiedź</InputLabel>
+                          <Select labelId="edit-correct-label" label="Poprawna odpowiedź" value={ef.poprawna} onChange={setField('poprawna')}>
+                            {LETTERS.map((l) => <MenuItem key={l} value={l}>{l.toUpperCase()}</MenuItem>)}
+                          </Select>
+                        </FormControl>
+                      </>
+                    ) : (
+                      <TextField size="small" label="Poprawna odpowiedź" value={ef.poprawna} onChange={setField('poprawna')} fullWidth inputProps={{ maxLength: 200 }} />
+                    )}
+                  </Box>
+                )}
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button color="inherit" onClick={closeEdit} disabled={saving || uploading}>Anuluj</Button>
+          <Button variant="contained" onClick={saveEdit} disabled={saving || uploading}>{saving ? 'Zapisywanie…' : 'Zapisz zmiany'}</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Monit przed pokazaniem odpowiedzi */}
       <Dialog open={confirmTarget !== null} onClose={() => !revealing && setConfirmTarget(null)} maxWidth="xs" fullWidth>

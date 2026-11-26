@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Box, Typography } from '@mui/material';
-import { youtubeEmbedUrl } from './quizApi';
+import { hasPlayableMedia, isOwnMedia, mediaIcon, mediaNoun, ownMediaSrc, youtubeEmbedUrl } from './quizApi';
 import { Avatar } from './Avatar';
 
 const BORDER_GOLD = 'linear-gradient(180deg, var(--gold-light), var(--gold-deep))';
@@ -114,7 +114,123 @@ const ytCommand = (frame, func, args = []) => {
   }
 };
 
-export const TvMedia = ({ media, link, qid, mediaCmd, start = 0, end = 0, paused = false }) => {
+// Wlasny plik (wideo / nagranie) albo zdjecie. Wideo i nagranie startuja same (od `start`, do `end`),
+// sterowane tak samo jak YouTube: play / pause / restart z panelu prowadzacego i pauza gry.
+const TvFile = ({ media, link, qid, mediaCmd, start = 0, end = 0, paused = false }) => {
+  const ref = useRef(null);
+  const lastN = useRef(mediaCmd ? mediaCmd.n : 0);
+  const src = ownMediaSrc(link);
+  const [muted, setMuted] = useState(false);
+
+  const play = useCallback(() => {
+    const el = ref.current;
+    if (!el || !el.play) return;
+    const p = el.play();
+    if (p && p.catch) {
+      // przegladarka blokuje samoczynny dzwiek - gramy bez dzwieku, a pierwszy klawisz/dotkniecie go wlacza
+      p.catch(() => {
+        el.muted = true;
+        setMuted(true);
+        el.play().catch(() => {});
+      });
+    }
+  }, []);
+
+  const seek = (t) => {
+    try {
+      if (ref.current) ref.current.currentTime = t;
+    } catch (e) {
+      /* plik jeszcze niegotowy */
+    }
+  };
+
+  useEffect(() => {
+    if (!mediaCmd || mediaCmd.n === lastN.current) return;
+    lastN.current = mediaCmd.n;
+    const el = ref.current;
+    if (mediaCmd.qid !== qid || !el) return;
+    if (mediaCmd.cmd === 'pause') el.pause();
+    else if (mediaCmd.cmd === 'play') {
+      if (end && el.currentTime >= end) seek(start);
+      play();
+    } else if (mediaCmd.cmd === 'restart') {
+      seek(start);
+      play();
+    }
+  }, [mediaCmd, qid, start, end, play]);
+
+  const firstPause = useRef(true);
+  useEffect(() => {
+    if (firstPause.current) {
+      firstPause.current = false;
+      if (!paused) return;
+    }
+    const el = ref.current;
+    if (!el || media === 'zdjecie') return;
+    if (paused) el.pause();
+    else if (!(end && el.currentTime >= end)) play();
+  }, [paused]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!muted) return undefined;
+    const unmute = () => {
+      if (ref.current) ref.current.muted = false;
+      setMuted(false);
+    };
+    window.addEventListener('pointerdown', unmute, { once: true });
+    window.addEventListener('keydown', unmute, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unmute);
+      window.removeEventListener('keydown', unmute);
+    };
+  }, [muted]);
+
+  const onLoaded = () => {
+    if (start) seek(start);
+    if (!paused) play();
+  };
+  const onTime = () => {
+    const el = ref.current;
+    if (el && end && el.currentTime >= end) el.pause();
+  };
+
+  if (media === 'zdjecie') {
+    return (
+      <Box sx={{ mt: 'clamp(6px, 1.2vh, 16px)', flex: '1 1 0', minHeight: 44, display: 'flex', justifyContent: 'center', minWidth: 0 }}>
+        <img src={src} alt="Zdjęcie do pytania" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 16, border: '2px solid var(--gold)', background: '#000' }} />
+      </Box>
+    );
+  }
+
+  const isVideo = media === 'wideo';
+  return (
+    <Box sx={{ mt: 'clamp(6px, 1.2vh, 16px)', flex: '1 1 0', minHeight: 44, display: 'flex', justifyContent: 'center', minWidth: 0 }}>
+      <Box sx={{ position: 'relative', height: '100%', maxWidth: '100%', borderRadius: '16px', overflow: 'hidden', border: '2px solid var(--gold)', background: '#000' }}>
+        <svg viewBox="0 0 16 9" aria-hidden="true" style={{ height: '100%', width: 'auto', maxWidth: '100%', display: 'block', visibility: 'hidden' }} />
+        {isVideo ? (
+          <video ref={ref} src={src} playsInline preload="auto" onLoadedMetadata={onLoaded} onTimeUpdate={onTime} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
+        ) : (
+          <>
+            <audio ref={ref} src={src} preload="auto" onLoadedMetadata={onLoaded} onTimeUpdate={onTime} />
+            <Box sx={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 50% 40%, #12206b, #050a2e)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 2 }}>
+              <Typography sx={{ fontSize: 'clamp(3rem, 8vw, 6rem)' }} aria-hidden="true">🎵</Typography>
+              <Typography sx={{ color: 'var(--gold)', fontWeight: 800, letterSpacing: 4, textTransform: 'uppercase' }}>Słuchajcie uważnie…</Typography>
+            </Box>
+          </>
+        )}
+        {muted && (
+          <Box sx={{ position: 'absolute', left: 0, right: 0, bottom: 0, p: 0.75, textAlign: 'center', background: 'rgba(0,0,0,0.75)', color: '#fff', fontWeight: 700, fontSize: 'clamp(0.8rem, 1.3vw, 1.4rem)' }}>
+            🔇 Naciśnij dowolny przycisk, aby włączyć dźwięk
+          </Box>
+        )}
+      </Box>
+    </Box>
+  );
+};
+
+export const TvMedia = (props) => (isOwnMedia(props.link) || props.media === 'zdjecie' ? <TvFile {...props} /> : <TvYoutube {...props} />);
+
+const TvYoutube = ({ media, link, qid, mediaCmd, start = 0, end = 0, paused = false }) => {
   const frameRef = useRef(null);
   const lastN = useRef(mediaCmd ? mediaCmd.n : 0);
   const emb = youtubeEmbedUrl(link, 'autoplay=1&controls=0&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&disablekb=1&fs=0&enablejsapi=1' + (start ? `&start=${start}` : '') + (end ? `&end=${end}` : ''));
@@ -176,7 +292,7 @@ const remoteBtn = { cursor: 'pointer', padding: '8px 16px', borderRadius: 999, b
 // Przyciski prowadzacego: odtwarzanie / pauza / od poczatku na ekranie TV
 export const MediaRemote = ({ media, act, busy }) => (
   <Box sx={{ mt: 2, p: 1.5, borderRadius: '14px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(var(--accent-rgb),0.35)', display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-    <Typography sx={{ fontWeight: 700, color: 'var(--gold)', mr: 1 }}>{media === 'wideo' ? '🎬 Film na TV:' : '🎵 Utwór na TV:'}</Typography>
+    <Typography sx={{ fontWeight: 700, color: 'var(--gold)', mr: 1 }}>{mediaIcon(media)} {mediaNoun(media)} na TV:</Typography>
     <button type="button" disabled={busy} onClick={() => act('media', { cmd: 'play' })} style={remoteBtn}>▶ Odtwórz</button>
     <button type="button" disabled={busy} onClick={() => act('media', { cmd: 'pause' })} style={remoteBtn}>⏸ Pauza</button>
     <button type="button" disabled={busy} onClick={() => act('media', { cmd: 'restart' })} style={remoteBtn}>↺ Od początku</button>
@@ -187,9 +303,15 @@ export const MediaRemote = ({ media, act, busy }) => (
 export const MediaBlock = ({ media, link, size = 'phone', embed = true }) => {
   if (!link) return null;
   const emb = embed ? youtubeEmbedUrl(link) : null;
-  const label = media === 'wideo' ? '🎬 Otwórz film' : '🎵 Otwórz utwór';
+  const label = media === 'wideo' ? '🎬 Otwórz film' : media === 'zdjecie' ? '📷 Otwórz zdjęcie' : '🎵 Otwórz utwór';
+  const href = ownMediaSrc(link);
   return (
     <Box sx={{ mt: 2 }}>
+      {media === 'zdjecie' && (
+        <Box sx={{ textAlign: 'center' }}>
+          <img src={href} alt="Zdjęcie do pytania" style={{ maxWidth: '100%', maxHeight: size === 'host' ? 200 : 360, borderRadius: 12, border: '2px solid var(--gold)' }} />
+        </Box>
+      )}
       {emb && (
         <Box sx={{ position: 'relative', paddingTop: '56.25%', borderRadius: '16px', overflow: 'hidden', border: '2px solid var(--gold)', maxWidth: size === 'tv' ? 760 : '100%', mx: 'auto' }}>
           <iframe
@@ -202,7 +324,7 @@ export const MediaBlock = ({ media, link, size = 'phone', embed = true }) => {
         </Box>
       )}
       <Box sx={{ textAlign: 'center', mt: 1 }}>
-        <a href={link} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--gold)', fontWeight: 700 }}>
+        <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--gold)', fontWeight: 700 }}>
           {label}
         </a>
       </Box>
@@ -219,7 +341,8 @@ export const QuestionPanel = ({ current, size = 'phone', hostPreview = false, on
   const correctLetter = current.correct ? current.correct.letter : null;
   const answeredLetter = current.answer && current.answer.value && q.typ === 'abcd' ? current.answer.value : null;
   const big = size === 'tv';
-  const videoRow = big && q.media === 'wideo' && !!q.link && !!youtubeEmbedUrl(q.link);
+  const playable = hasPlayableMedia(q.link, q.media);
+  const videoRow = big && (q.media === 'wideo' || q.media === 'zdjecie') && playable;
 
   return (
     <Box sx={big ? { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, height: '100%' } : undefined}>
@@ -230,11 +353,11 @@ export const QuestionPanel = ({ current, size = 'phone', hostPreview = false, on
       </HexBar>
 
       <Box sx={videoRow ? { display: 'flex', gap: 'clamp(8px, 1.4vw, 24px)', flex: 1, minHeight: 0, alignItems: 'stretch' } : { display: 'contents' }}>
-      {q.link && big && youtubeEmbedUrl(q.link) ? (
+      {q.link && big && playable ? (
         <TvMedia key={q.id} media={q.media} link={q.link} qid={q.id} mediaCmd={mediaCmd} start={q.start || 0} end={q.end || 0} />
-      ) : q.link && size === 'phone' && youtubeEmbedUrl(q.link) ? (
+      ) : q.link && size === 'phone' && playable ? (
         <Box sx={{ mt: 2, textAlign: 'center', color: 'var(--gold)', fontWeight: 700 }}>
-          {q.media === 'wideo' ? '🎬 Film leci na ekranie TV' : '🎵 Utwór leci na ekranie TV'}
+          {mediaIcon(q.media)} {mediaNoun(q.media)} {q.media === 'zdjecie' ? 'jest' : 'leci'} na ekranie TV
         </Box>
       ) : (
         <MediaBlock media={q.media} link={q.link} size={size} embed={embedMedia} />

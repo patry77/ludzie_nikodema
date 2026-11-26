@@ -7,7 +7,7 @@ import { useSiteTheme } from '../ThemeContext';
 import StageBackdrop from '../quiz/StageBackdrop';
 import { Avatar } from '../quiz/Avatar';
 import { HexBar, TvMedia } from '../quiz/QuizBits';
-import { useSecondsLeft, youtubeEmbedUrl } from '../quiz/quizApi';
+import { hasPlayableMedia, useSecondsLeft } from '../quiz/quizApi';
 import { IntroTv } from '../quiz/IntroCam';
 import { K, LETTERS, Leaderboard, RoundHighlights, fmtMs, nameOf } from './KahootBits';
 
@@ -72,8 +72,8 @@ const QuestionView = ({ state, offsetRef }) => {
   const total = state.config.questionSeconds;
   const pct = left === null ? 100 : Math.max(0, Math.min(100, (left / total) * 100));
   const urgent = left !== null && left <= 5;
-  const hasMedia = !!q.link && !!youtubeEmbedUrl(q.link);
-  const sideBySide = hasMedia && q.media === 'wideo';
+  const hasMedia = hasPlayableMedia(q.link, q.media);
+  const sideBySide = hasMedia && (q.media === 'wideo' || q.media === 'zdjecie');
 
   const answers = (
     <Box sx={{ display: 'grid', gridTemplateColumns: sideBySide ? '1fr' : '1fr 1fr', gap: 'clamp(6px, 1vh, 14px)', mt: sideBySide ? 0 : 'clamp(6px, 1.2vh, 16px)', ...(sideBySide ? { width: 'min(40%, 620px)', flexShrink: 0, alignContent: 'center' } : {}) }}>

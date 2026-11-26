@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Box, Container, InputBase, Typography } from '@mui/material';
 import confetti from 'canvas-confetti';
 import { useSiteTheme } from '../ThemeContext';
 import StageBackdrop from '../quiz/StageBackdrop';
 import MarqueeSign from '../quiz/MarqueeSign';
+import { uploadMediaFile } from '../quiz/quizApi';
 
 const API_URL = process.env.REACT_APP_API_URL || '/api';
 const LETTERS = ['a', 'b', 'c', 'd'];
@@ -83,7 +84,15 @@ const parseTime = (v) => {
 const TeleturniejPage = () => {
   const { preset } = useSiteTheme();
   const [typ, setTyp] = useState('abcd'); // 'abcd' | 'otwarte'
-  const [media, setMedia] = useState(''); // '' | 'muzyka' | 'wideo'
+  const [media, setMedia] = useState(''); // '' | 'muzyka' | 'wideo' | 'zdjecie'
+  const [source, setSource] = useState('link'); // 'link' | 'file' (wlasny plik wgrany na serwer)
+  const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState('');
+  const [maxMb, setMaxMb] = useState(9);
+  const [audioMb, setAudioMb] = useState(25);
+  const [compression, setCompression] = useState(false);
+  const [statusText, setStatusText] = useState('');
+  const fileInput = useRef(null);
   const [form, setForm] = useState(emptyForm);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
@@ -91,21 +100,78 @@ const TeleturniejPage = () => {
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${API_URL}/media/limits`);
+        const data = await res.json();
+        if (data && data.maxMb) setMaxMb(data.maxMb);
+        if (data && data.audioMaxMb) setAudioMb(data.audioMaxMb);
+        setCompression(!!(data && data.compression));
+      } catch (e) {
+        /* zostaje domyslny limit */
+      }
+    })();
+  }, []);
+
+  // Podglad wybranego pliku (adres tymczasowy, zwalniany przy zmianie)
+  useEffect(() => {
+    if (!file) {
+      setPreview('');
+      return undefined;
+    }
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  const pickMedia = (value) => {
+    setMedia(value);
+    setFile(null);
+    if (fileInput.current) fileInput.current.value = '';
+  };
+
+  const onFile = (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const okType = media === 'zdjecie' ? f.type.startsWith('image/') : media === 'wideo' ? f.type.startsWith('video/') : f.type.startsWith('audio/') || /\.(mp3|m4a|ogg|wav)$/i.test(f.name);
+    if (!okType) {
+      setError(media === 'zdjecie' ? 'Wybierz plik ze zdjęciem (JPG, PNG, WebP lub GIF).' : media === 'wideo' ? 'Wybierz plik wideo (MP4 lub WebM).' : 'Wybierz plik audio (MP3, M4A, OGG lub WAV).');
+      e.target.value = '';
+      return;
+    }
+    // zdjecia zmniejszamy przed wyslaniem, wiec ich rozmiaru nie sprawdzamy z gory
+    const limitMb = media === 'wideo' ? maxMb : audioMb;
+    if (!f.type.startsWith('image/') && f.size > limitMb * 1024 * 1024) {
+      setError(`Plik jest za duży (${(f.size / 1048576).toFixed(1)} MB, maks. ${limitMb} MB). Przytnij go lub zmniejsz jakość.`);
+      e.target.value = '';
+      return;
+    }
+    setError('');
+    setFile(f);
+  };
+
   const validate = () => {
     if (!form.pytanie.trim()) return 'Wpisz treść pytania.';
     if (media) {
-      let ok = false;
-      try {
-        const u = new URL(form.link.trim());
-        ok = u.protocol === 'http:' || u.protocol === 'https:';
-      } catch (e) {
-        ok = false;
+      if (source === 'file') {
+        if (!file) return 'Wybierz plik do wgrania albo przełącz na link.';
+      } else {
+        let ok = false;
+        try {
+          const u = new URL(form.link.trim());
+          ok = u.protocol === 'http:' || u.protocol === 'https:';
+        } catch (e) {
+          ok = false;
+        }
+        if (!ok) return 'Podaj poprawny link (zaczynający się od http:// lub https://).';
       }
-      if (!ok) return 'Podaj poprawny link (zaczynający się od http:// lub https://).';
-      const st = parseTime(form.start);
-      const en = parseTime(form.end);
-      if (Number.isNaN(st) || Number.isNaN(en)) return 'Czas początku i końca wpisz jako m:ss (np. 1:25) lub w sekundach.';
-      if (en && en <= st) return 'Koniec fragmentu musi być późniejszy niż początek.';
+      if (media !== 'zdjecie') {
+        const st = parseTime(form.start);
+        const en = parseTime(form.end);
+        if (Number.isNaN(st) || Number.isNaN(en)) return 'Czas początku i końca wpisz jako m:ss (np. 1:25) lub w sekundach.';
+        if (en && en <= st) return 'Koniec fragmentu musi być późniejszy niż początek.';
+      }
     }
     if (typ === 'abcd') {
       for (const l of LETTERS) {
@@ -142,9 +208,17 @@ const TeleturniejPage = () => {
           : { typ, pytanie: form.pytanie.trim(), poprawna_odpowiedz: form.poprawna_tekst.trim() };
       if (media) {
         payload.media = media;
-        payload.link = form.link.trim();
-        payload.start = parseTime(form.start);
-        payload.end = parseTime(form.end);
+        if (source === 'file') {
+          const up = await uploadMediaFile(file, setStatusText);
+          if (!up.ok) throw new Error(up.data.error || 'Nie udało się wgrać pliku.');
+          payload.upload = up.data.upload;
+        } else {
+          payload.link = form.link.trim();
+        }
+        if (media !== 'zdjecie') {
+          payload.start = parseTime(form.start);
+          payload.end = parseTime(form.end);
+        }
       }
       const response = await fetch(`${API_URL}/questions`, {
         method: 'POST',
@@ -155,6 +229,8 @@ const TeleturniejPage = () => {
       if (!response.ok) throw new Error(data.error || 'Nie udało się dodać pytania.');
       setAdded((n) => n + 1);
       setForm(emptyForm);
+      setFile(null);
+      if (fileInput.current) fileInput.current.value = '';
       confetti({ particleCount: 110, spread: 80, origin: { y: 0.6 }, colors: preset.colors.confetti });
     } catch (err) {
       setError(err.message);
@@ -196,8 +272,8 @@ const TeleturniejPage = () => {
             </Box>
             <Box sx={{ mt: 2 }}>
               <SectionLabel>Multimedia (opcjonalnie)</SectionLabel>
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 1.5 }} role="radiogroup" aria-label="Multimedia">
-                {[['', '➖ Bez multimediów'], ['muzyka', '🎵 Pytanie muzyczne'], ['wideo', '🎬 Pytanie wideo']].map(([value, label]) => (
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 1.5 }} role="radiogroup" aria-label="Multimedia">
+                {[['', '➖ Bez multimediów'], ['muzyka', '🎵 Pytanie muzyczne'], ['wideo', '🎬 Pytanie wideo'], ['zdjecie', '📷 Pytanie ze zdjęciem']].map(([value, label]) => (
                   <HexBar
                     key={value || 'brak'}
                     component="button"
@@ -206,7 +282,7 @@ const TeleturniejPage = () => {
                     aria-checked={media === value}
                     selected={media === value}
                     minHeight={52}
-                    onClick={() => setMedia(value)}
+                    onClick={() => pickMedia(value)}
                   >
                     <Typography sx={{ width: '100%', textAlign: 'center', fontWeight: 700, fontSize: '0.95rem' }}>{label}</Typography>
                   </HexBar>
@@ -224,7 +300,7 @@ const TeleturniejPage = () => {
                 minRows={2}
                 value={form.pytanie}
                 onChange={set('pytanie')}
-                placeholder={media === 'muzyka' ? 'np. Jak nazywa się ten utwór?' : media === 'wideo' ? 'np. Z jakiego filmu pochodzi ta scena?' : 'Wpisz treść pytania...'}
+                placeholder={media === 'muzyka' ? 'np. Jak nazywa się ten utwór?' : media === 'wideo' ? 'np. Z jakiego filmu pochodzi ta scena?' : media === 'zdjecie' ? 'np. Kto jest na tym zdjęciu?' : 'Wpisz treść pytania...'}
                 inputProps={{ 'aria-label': 'Treść pytania', maxLength: 500 }}
                 sx={{ ...inputSx, fontSize: { xs: '1.05rem', sm: '1.25rem' } }}
               />
@@ -233,18 +309,60 @@ const TeleturniejPage = () => {
 
           {media && (
             <Box>
-              <SectionLabel>{media === 'muzyka' ? 'Link do utworu' : 'Link do filmu'}</SectionLabel>
-              <HexBar>
-                <Box component="span" aria-hidden="true" sx={{ mr: 1.5, fontSize: '1.3rem' }}>{media === 'muzyka' ? '🎵' : '🎬'}</Box>
-                <InputBase
-                  type="url"
-                  value={form.link}
-                  onChange={set('link')}
-                  placeholder="https://www.youtube.com/watch?v=..."
-                  inputProps={{ 'aria-label': media === 'muzyka' ? 'Link do utworu' : 'Link do filmu', maxLength: 300 }}
-                  sx={inputSx}
-                />
-              </HexBar>
+              <SectionLabel>Źródło {media === 'muzyka' ? 'utworu' : media === 'wideo' ? 'filmu' : 'zdjęcia'}</SectionLabel>
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5, mb: 2 }} role="radiogroup" aria-label="Źródło multimediów">
+                {[['link', '🔗 Link (np. YouTube)'], ['file', '📁 Własny plik']].map(([value, label]) => (
+                  <HexBar key={value} component="button" type="button" role="radio" aria-checked={source === value} selected={source === value} minHeight={52} onClick={() => setSource(value)}>
+                    <Typography sx={{ width: '100%', textAlign: 'center', fontWeight: 700, fontSize: '0.95rem' }}>{label}</Typography>
+                  </HexBar>
+                ))}
+              </Box>
+
+              {source === 'link' ? (
+                <HexBar>
+                  <Box component="span" aria-hidden="true" sx={{ mr: 1.5, fontSize: '1.3rem' }}>{media === 'muzyka' ? '🎵' : media === 'wideo' ? '🎬' : '📷'}</Box>
+                  <InputBase
+                    type="url"
+                    value={form.link}
+                    onChange={set('link')}
+                    placeholder={media === 'zdjecie' ? 'https://.../zdjecie.jpg' : 'https://www.youtube.com/watch?v=...'}
+                    inputProps={{ 'aria-label': media === 'muzyka' ? 'Link do utworu' : media === 'wideo' ? 'Link do filmu' : 'Link do zdjęcia', maxLength: 300 }}
+                    sx={inputSx}
+                  />
+                </HexBar>
+              ) : (
+                <Box>
+                  <input
+                    ref={fileInput}
+                    type="file"
+                    hidden
+                    accept={media === 'zdjecie' ? 'image/*' : media === 'wideo' ? 'video/mp4,video/webm' : 'audio/*,.mp3,.m4a,.ogg,.wav'}
+                    onChange={onFile}
+                    aria-label="Wybierz plik"
+                  />
+                  <HexBar component="button" type="button" selected={!!file} minHeight={64} onClick={() => fileInput.current && fileInput.current.click()}>
+                    <Box sx={{ width: '100%', textAlign: 'center' }}>
+                      <Typography sx={{ fontWeight: 800 }}>{file ? `✔ ${file.name}` : '📁 Wybierz plik'}</Typography>
+                      <Typography sx={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.9)' }}>
+                        {file ? `${(file.size / 1048576).toFixed(1)} MB – kliknij, aby zmienić` : media === 'zdjecie' ? 'JPG, PNG, WebP lub GIF (zdjęcie zmniejszymy automatycznie)' : media === 'wideo' ? `MP4 lub WebM, maks. ${maxMb} MB${compression ? ' – film zostanie automatycznie skompresowany' : ''}` : `MP3, M4A, OGG lub WAV, maks. ${audioMb} MB`}
+                      </Typography>
+                    </Box>
+                  </HexBar>
+                  {file && preview && (
+                    <Box sx={{ mt: 1.5, textAlign: 'center' }}>
+                      {media === 'zdjecie' ? (
+                        <img src={preview} alt="Podgląd wybranego zdjęcia" style={{ maxWidth: '100%', maxHeight: 260, borderRadius: 12, border: '2px solid var(--gold)' }} />
+                      ) : media === 'wideo' ? (
+                        <video src={preview} controls playsInline style={{ maxWidth: '100%', maxHeight: 260, borderRadius: 12, border: '2px solid var(--gold)' }} />
+                      ) : (
+                        <audio src={preview} controls style={{ width: '100%' }} />
+                      )}
+                    </Box>
+                  )}
+                </Box>
+              )}
+              {media !== 'zdjecie' && (
+              <>
               <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5, mt: 1.5 }}>
                 <Box>
                   <SectionLabel>Fragment od (opcjonalnie)</SectionLabel>
@@ -260,8 +378,10 @@ const TeleturniejPage = () => {
                 </Box>
               </Box>
               <Typography sx={{ color: 'var(--ink-dim)', fontSize: '0.85rem', mt: 1 }}>
-                Podaj, jeśli w grze ma zagrać tylko wycinek (np. refren). Puste = od początku do końca.
+                Podaj, jeśli w grze ma zagrać tylko wycinek (np. refren albo fragment Twojego filmu). Puste = od początku do końca.
               </Typography>
+              </>
+              )}
             </Box>
           )}
 
@@ -348,7 +468,7 @@ const TeleturniejPage = () => {
               '&:disabled': { opacity: 0.7 },
             }}
           >
-            {sending ? 'Zapisywanie...' : 'Zatwierdź pytanie'}
+            {sending ? statusText || 'Zapisywanie...' : 'Zatwierdź pytanie'}
           </Box>
         </Box>
       </Container>

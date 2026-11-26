@@ -121,6 +121,70 @@ export function useSecondsLeft(deadline, offsetRef, frozenAt) {
   return left;
 }
 
+// ----- wlasne zdjecia / filmy / nagrania wgrane na serwer (link "/api/media/<plik>") -----
+export const isOwnMedia = (link) => typeof link === 'string' && link.startsWith('/api/media/');
+export const ownMediaSrc = (link) => (isOwnMedia(link) ? `${API}${link.slice(4)}` : link);
+// Czy multimedia da sie pokazac w grze: YouTube, wlasny plik albo zdjecie (takze z linku)
+export const hasPlayableMedia = (link, media) => !!link && (!!youtubeEmbedUrl(link) || isOwnMedia(link) || media === 'zdjecie');
+export const mediaIcon = (media) => (media === 'wideo' ? '🎬' : media === 'zdjecie' ? '📷' : '🎵');
+export const mediaNoun = (media) => (media === 'wideo' ? 'Film' : media === 'zdjecie' ? 'Zdjęcie' : 'Utwór');
+
+// Zdjecie zmniejszamy w przegladarce (maks. 1920 px, JPEG), zeby nie wysylac wielu megabajtow. GIF-y zostaja bez zmian.
+export async function prepareImage(file) {
+  if (!file || !file.type.startsWith('image/') || file.type === 'image/gif') return file;
+  try {
+    const bmp = await createImageBitmap(file);
+    const scale = Math.min(1, 1920 / Math.max(bmp.width, bmp.height));
+    if (scale === 1 && file.size < 1.5 * 1024 * 1024) return file;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bmp.width * scale);
+    canvas.height = Math.round(bmp.height * scale);
+    canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.86));
+    return blob && blob.size < file.size ? blob : file;
+  } catch (e) {
+    return file;
+  }
+}
+
+// Wgrywa plik na serwer; zwraca { ok, data: { upload, url, media, size } | { error } }.
+// Film serwer kompresuje w tle - czekamy, az bedzie gotowy (onStatus dostaje opis biezacego etapu).
+export async function uploadMediaFile(file, onStatus) {
+  const say = (t) => {
+    if (onStatus) onStatus(t);
+  };
+  try {
+    say('Wgrywanie pliku…');
+    const body = await prepareImage(file);
+    const response = await fetch(`${API}/media/upload`, { method: 'POST', headers: { 'Content-Type': body.type || file.type || 'application/octet-stream' }, body });
+    const data = await response.json().catch(() => ({ error: response.status === 413 ? 'Plik jest za duży' : 'Nie udało się wgrać pliku' }));
+    if (!response.ok || !data.processing) {
+      say('');
+      return { ok: response.ok, data };
+    }
+    // kompresja filmu: odpytujemy o stan co 1,5 s (maks. 12 minut)
+    say('Kompresja filmu… (może potrwać do kilku minut, nie zamykaj strony)');
+    const started = Date.now();
+    while (Date.now() - started < 12 * 60 * 1000) {
+      await new Promise((r) => setTimeout(r, 1500));
+      const s = await fetch(`${API}/media/status/${data.upload}`).then((r) => r.json()).catch(() => null);
+      if (s && s.state === 'ready') {
+        say('');
+        return { ok: true, data };
+      }
+      if (s && (s.state === 'failed' || s.state === 'missing')) {
+        say('');
+        return { ok: false, data: { error: s.error || 'Nie udało się przetworzyć filmu' } };
+      }
+    }
+    say('');
+    return { ok: false, data: { error: 'Przetwarzanie filmu trwa zbyt długo. Spróbuj krótszego pliku.' } };
+  } catch (e) {
+    say('');
+    return { ok: false, data: { error: 'Brak połączenia z serwerem' } };
+  }
+}
+
 export const youtubeEmbedUrl = (link, params = 'rel=0') => {
   if (!link) return null;
   try {
