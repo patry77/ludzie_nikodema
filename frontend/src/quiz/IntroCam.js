@@ -234,7 +234,25 @@ export const IntroTv = ({ code, intro }) => {
   const helloAt = useRef(0);
   const liveRef = useRef(false);
   const framesRef = useRef(false);
-  const lastLiveAt = useRef(0);
+  const lastLiveAt = useRef(0); // ostatnia chwila, gdy polaczenie bylo "connected" (odswiezane co 2 s)
+  const discAt = useRef(0); // kiedy zaczelo sie "disconnected"
+  const [soundBlocked, setSoundBlocked] = useState(false); // przegladarka nie pozwala na dzwiek bez klikniecia
+  const soundBlockedRef = useRef(false);
+  // proba wlaczenia dzwieku (dziala dopiero po jakiejkolwiek interakcji uzytkownika ze strona)
+  const tryUnmute = () => {
+    const v = videoRef.current;
+    if (!v || !soundBlockedRef.current) return;
+    v.muted = false;
+    const p = v.play();
+    if (p && p.then) {
+      p.then(() => setSoundBlocked(false)).catch(() => {
+        v.muted = true;
+        v.play().catch(() => {});
+      });
+    } else {
+      setSoundBlocked(false);
+    }
+  };
   const lastT = useRef(0);
   const lastProg = useRef(Date.now());
   const trackMuted = useRef(false);
@@ -312,7 +330,9 @@ export const IntroTv = ({ code, intro }) => {
       v.srcObject = e.streams[0];
       v.muted = false;
       v.play().catch(() => {
+        // bez klikniecia przegladarka nie wlaczy dzwieku - gramy wyciszone, a pierwszy klawisz/dotkniecie go wlacza
         v.muted = true;
+        setSoundBlocked(true);
         v.play().catch(() => {});
       });
       setHadVideo(true);
@@ -335,6 +355,7 @@ export const IntroTv = ({ code, intro }) => {
       if (pcRef.current !== pc) return; // zdarzenie starego, juz zamknietego polaczenia
       const st = pc.connectionState;
       logEv(`polaczenie: ${st}`);
+      if (st === 'disconnected') discAt.current = Date.now();
       liveRef.current = st === 'connected';
       setLive(st === 'connected');
       if (st === 'connected') {
@@ -381,7 +402,8 @@ export const IntroTv = ({ code, intro }) => {
       const state = pc ? pc.connectionState : 'none';
       const sinceHello = Date.now() - helloAt.current;
       const busy = (state === 'new' || state === 'connecting') && sinceHello < 22000;
-      if (state === 'disconnected' && sinceHello < 30000) return;
+      // "disconnected" zwykle samo mija w kilka sekund - dajemy mu 10 s (liczone od zerwania, nie od ostatniego hello)
+      if (state === 'disconnected' && Date.now() - discAt.current < 10000) return;
       if (!busy && sinceHello > 9000) {
         try {
           hello();
@@ -393,6 +415,9 @@ export const IntroTv = ({ code, intro }) => {
     // polaczenie "connected", ale obraz stoi (telefon uspiony / siec): po 8 s negocjujemy od nowa
     // (currentTime strumienia na zywo rosnie zawsze, wiec liczymy klatki faktycznie odebrane przez WebRTC)
     const stall = setInterval(async () => {
+      if (liveRef.current) lastLiveAt.current = Date.now();
+      // uzytkownik juz kliknal gdziekolwiek na stronie - przegladarka pozwoli na dzwiek, wiec wlaczamy go sami
+      if (soundBlockedRef.current && navigator.userActivation && navigator.userActivation.hasBeenActive) tryUnmute();
       // przegladarka wstrzymuje wyciszone wideo, gdy karta/ramka jest niewidoczna - wznawiamy odtwarzanie
       const v0 = videoRef.current;
       if (v0 && v0.srcObject && v0.paused && !v0.ended) v0.play().catch(() => {});
@@ -439,6 +464,30 @@ export const IntroTv = ({ code, intro }) => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rev, code]);
+
+  // Wlaczenie dzwieku po pierwszym klikniecu / klawiszu (pilot TV tez zadziala). W konsoli testowej widok TV jest ramka
+  // w tej samej karcie, wiec nasluchujemy tez na stronie nadrzednej (to samo pochodzenie).
+  soundBlockedRef.current = soundBlocked;
+  useEffect(() => {
+    if (!soundBlocked) return undefined;
+    const targets = [window];
+    try {
+      if (window.parent && window.parent !== window && window.parent.document) targets.push(window.parent);
+    } catch (e) {
+      /* inna domena - tylko wlasne okno */
+    }
+    const go = () => tryUnmute();
+    targets.forEach((t) => {
+      t.addEventListener('pointerdown', go);
+      t.addEventListener('keydown', go);
+    });
+    return () => {
+      targets.forEach((t) => {
+        t.removeEventListener('pointerdown', go);
+        t.removeEventListener('keydown', go);
+      });
+    };
+  }, [soundBlocked]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Tryb poklatkowy: gdy zadanie klatki zawiesi sie (brak odpowiedzi i bledu), po 3 s prosimy o nastepna
   useEffect(() => {
@@ -541,6 +590,11 @@ export const IntroTv = ({ code, intro }) => {
         {!live && !(frames && gotFrame) && !hadVideo && (
           <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', px: 3 }}>
             <Typography sx={{ color: 'var(--ink-dim)', fontSize: 'clamp(1rem, 2vw, 2.4rem)' }}>Czekamy na włączenie kamery na telefonie...</Typography>
+          </Box>
+        )}
+        {live && soundBlocked && (
+          <Box sx={{ position: 'absolute', left: 0, right: 0, top: 0, py: 0.5, textAlign: 'center', background: 'rgba(0,0,0,0.7)', color: '#fff', fontWeight: 700, fontSize: 'clamp(0.75rem, 1.2vw, 1.4rem)' }}>
+            🔇 Naciśnij dowolny przycisk, aby włączyć dźwięk
           </Box>
         )}
         {/* przerwa w trakcie: zostaje ostatnia klatka, a napis jest tylko dyskretna plakietka */}
