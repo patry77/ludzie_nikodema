@@ -6,7 +6,7 @@ import { API, api } from './quizApi';
 // Serwer przekazuje tylko wiadomosci sygnalizacyjne. Przeplyw: TV wysyla "hello", telefon (ktory ma juz kamere) odpowiada "offer",
 // TV odsyla "answer", obie strony wymieniaja "ice". Kazdy "hello" otwiera nowa sesje (sid), wiec odswiezenie TV nie psuje polaczenia.
 
-const RTC_CONFIG = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+const RTC_CONFIG = { iceServers: [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }] };
 const rid = () => Math.random().toString(36).slice(2, 10);
 
 const signalUrl = (code, role, rev, since, extra) => {
@@ -89,6 +89,34 @@ export const IntroPhone = ({ code, intro, token, as }) => {
 
   useEffect(() => {
     if (videoRef.current && stream) videoRef.current.srcObject = stream;
+  }, [stream]);
+
+  // Ekran nie moze sie wygasic, bo telefon wstrzymuje wtedy kamere i obraz na TV zamarza
+  useEffect(() => {
+    if (!stream) return undefined;
+    let lock = null;
+    let alive = true;
+    const acquire = async () => {
+      try {
+        if (alive && navigator.wakeLock && document.visibilityState === 'visible') lock = await navigator.wakeLock.request('screen');
+      } catch (e) {
+        /* przegladarka nie pozwala - trudno */
+      }
+    };
+    acquire();
+    const onVis = () => {
+      if (document.visibilityState === 'visible') acquire();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    // kamera zabrana przez inna aplikacje / odlaczona
+    const vt = stream.getVideoTracks()[0];
+    if (vt) vt.onended = () => setError('Kamera została wyłączona (inna aplikacja albo blokada ekranu). Włącz ją ponownie.');
+    return () => {
+      alive = false;
+      document.removeEventListener('visibilitychange', onVis);
+      if (lock) lock.release().catch(() => {});
+      if (vt) vt.onended = null;
+    };
   }, [stream]);
 
   // Tryb zastepczy: gdy TV nie umie odebrac WebRTC, wysylamy klatki JPEG (kilka na sekunde, bez dzwieku)
@@ -187,6 +215,7 @@ export const IntroPhone = ({ code, intro, token, as }) => {
           <Typography variant="body2" sx={{ color: live ? '#8dffaf' : 'var(--ink-dim)', fontWeight: 700 }}>
             {live ? '● Jesteś na żywo na ekranie TV' : framesMode ? '● Obraz idzie na TV w trybie zastępczym (bez dźwięku)' : 'Łączenie z ekranem TV...'}
           </Typography>
+          <Typography variant="body2" sx={{ color: 'var(--ink-dim)', fontSize: '0.8rem' }}>Nie blokuj ekranu i nie przełączaj aplikacji, dopóki się przedstawiasz.</Typography>
           <Button onClick={stopAll} sx={{ color: '#ff9b9b' }}>Wyłącz kamerę</Button>
         </>
       )}
@@ -205,10 +234,28 @@ export const IntroTv = ({ code, intro }) => {
   const helloAt = useRef(0);
   const liveRef = useRef(false);
   const framesRef = useRef(false);
+  const lastLiveAt = useRef(0);
+  const lastT = useRef(0);
+  const lastProg = useRef(Date.now());
+  const trackMuted = useRef(false);
+  // ?debug w adresie widoku TV pokazuje w rogu stan polaczenia (przydatne, gdy obraz sie zacina)
+  const debug = typeof window !== 'undefined' && /[?&]debug\b/.test(window.location.search);
+  const [dbg, setDbg] = useState('');
+  const [evs, setEvs] = useState([]);
+  const logEv = (t) => {
+    if (debug) setEvs((e) => [...e.slice(-7), `${new Date().toTimeString().slice(0, 8)} ${t}`]);
+  };
+  const [hadVideo, setHadVideo] = useState(false); // obraz juz raz dotarl - wtedy przy przerwie zostawiamy ostatnia klatke
+  const [camPaused, setCamPaused] = useState(false); // telefon wstrzymal kamere (np. zablokowany ekran)
   const [live, setLive] = useState(false);
   const [frames, setFrames] = useState(false);
   const [frameN, setFrameN] = useState(0);
   const [gotFrame, setGotFrame] = useState(false);
+  // Prawdziwe proporcje obrazu z telefonu (pion / poziom) - ramka dopasowuje sie do nich, wiec nic nie jest przycinane
+  const [ar, setAr] = useState(4 / 3);
+  const setRatio = (w, h) => {
+    if (w > 0 && h > 0) setAr(Math.min(2.4, Math.max(0.4, w / h)));
+  };
   const rev = intro.rev;
   const modeRef = useRef(intro.mode || 'auto');
   modeRef.current = intro.mode || 'auto';
@@ -234,6 +281,7 @@ export const IntroTv = ({ code, intro }) => {
       setLive(false);
     }
     setStatus('connecting');
+    logEv('przelaczenie na tryb poklatkowy');
     framesRef.current = true;
     lastStatus.current = 'frames';
     sendSignal(code, { role: 'tv', rev, type: 'status', value: 'frames' });
@@ -267,18 +315,42 @@ export const IntroTv = ({ code, intro }) => {
         v.muted = true;
         v.play().catch(() => {});
       });
+      setHadVideo(true);
+      if (e.track.kind === 'video') {
+        e.track.onmute = () => {
+          trackMuted.current = true;
+          setCamPaused(true);
+        };
+        e.track.onunmute = () => {
+          trackMuted.current = false;
+          lastProg.current = Date.now();
+          setCamPaused(false);
+        };
+      }
     };
     pc.onicecandidate = (e) => {
       if (e.candidate) sendSignal(code, { role: 'tv', rev, type: 'ice', sid, data: e.candidate.toJSON() });
     };
     pc.onconnectionstatechange = () => {
+      if (pcRef.current !== pc) return; // zdarzenie starego, juz zamknietego polaczenia
       const st = pc.connectionState;
+      logEv(`polaczenie: ${st}`);
       liveRef.current = st === 'connected';
       setLive(st === 'connected');
-      if (st === 'connected') framesRef.current = false;
-      setStatus(st === 'connected' ? 'live' : st === 'failed' || st === 'disconnected' ? 'failed' : 'connecting');
-      if (st === 'failed' || st === 'disconnected') setTimeout(() => sidRef.current === sid && !liveRef.current && hello(), 2500);
+      if (st === 'connected') {
+        framesRef.current = false;
+        lastLiveAt.current = Date.now();
+        lastProg.current = Date.now();
+      }
+      if (st === 'closed') return;
+      setStatus(st === 'connected' ? 'live' : st === 'failed' ? 'failed' : 'connecting');
+      // "disconnected" jest zwykle chwilowe (zmiana sieci, krotka przerwa) i samo mija - dajemy mu 8 s zanim zaczniemy od nowa;
+      // dopiero "failed" oznacza prawdziwa awarie
+      if (st === 'failed') setTimeout(() => sidRef.current === sid && !liveRef.current && hello(), 1500);
+      else if (st === 'disconnected') setTimeout(() => sidRef.current === sid && !liveRef.current && hello(), 8000);
     };
+    pc.oniceconnectionstatechange = () => logEv(`ICE: ${pc.iceConnectionState}`);
+    logEv('hello (nowa negocjacja)');
     sendSignal(code, { role: 'tv', rev, type: 'hello', sid });
     setStatus('connecting');
   };
@@ -287,6 +359,10 @@ export const IntroTv = ({ code, intro }) => {
     lastStatus.current = '';
     framesRef.current = false;
     setFrames(false);
+    setHadVideo(false);
+    setCamPaused(false);
+    lastLiveAt.current = 0;
+    trackMuted.current = false;
     const startedAt = Date.now();
     try {
       if (modeRef.current === 'frames') startFrames();
@@ -298,8 +374,15 @@ export const IntroTv = ({ code, intro }) => {
     const again = setInterval(() => {
       if (liveRef.current) return;
       if (modeRef.current === 'frames') return; // tryb poklatkowy wybrany recznie
-      if (modeRef.current === 'auto' && Date.now() - startedAt > 14000) startFrames();
-      if (Date.now() - helloAt.current > 9000) {
+      // zastepczy tryb poklatkowy dopiero, gdy WebRTC nie dziala dluzej (od startu albo od ostatniego polaczenia)
+      if (modeRef.current === 'auto' && Date.now() - (lastLiveAt.current || startedAt) > 16000) startFrames();
+      // nie przerywamy polaczenia, ktore wlasnie sie nawiazuje (moze trwac kilkanascie sekund) ani chwilowej przerwy
+      const pc = pcRef.current;
+      const state = pc ? pc.connectionState : 'none';
+      const sinceHello = Date.now() - helloAt.current;
+      const busy = (state === 'new' || state === 'connecting') && sinceHello < 22000;
+      if (state === 'disconnected' && sinceHello < 30000) return;
+      if (!busy && sinceHello > 9000) {
         try {
           hello();
         } catch (e) {
@@ -307,13 +390,62 @@ export const IntroTv = ({ code, intro }) => {
         }
       }
     }, 3000);
+    // polaczenie "connected", ale obraz stoi (telefon uspiony / siec): po 8 s negocjujemy od nowa
+    // (currentTime strumienia na zywo rosnie zawsze, wiec liczymy klatki faktycznie odebrane przez WebRTC)
+    const stall = setInterval(async () => {
+      // przegladarka wstrzymuje wyciszone wideo, gdy karta/ramka jest niewidoczna - wznawiamy odtwarzanie
+      const v0 = videoRef.current;
+      if (v0 && v0.srcObject && v0.paused && !v0.ended) v0.play().catch(() => {});
+      const pc = pcRef.current;
+      if (!pc || !pc.getStats) return;
+      if (!liveRef.current && !debug) return;
+      try {
+        const stats = await pc.getStats();
+        let frames = null;
+        let lost = 0;
+        const cands = {};
+        let pair = null;
+        stats.forEach((r) => {
+          if (r.type === 'inbound-rtp' && (r.kind === 'video' || r.mediaType === 'video')) {
+            frames = r.framesDecoded !== undefined ? r.framesDecoded : r.framesReceived;
+            lost = r.packetsLost || 0;
+          }
+          if (r.type === 'local-candidate' || r.type === 'remote-candidate') cands[r.id] = r;
+          if (r.type === 'candidate-pair' && (r.nominated || r.selected) && r.state === 'succeeded') pair = r;
+        });
+        if (debug) {
+          const l = pair && cands[pair.localCandidateId];
+          const rm = pair && cands[pair.remoteCandidateId];
+          setDbg(`${pc.connectionState}/${pc.iceConnectionState} | ${l ? l.candidateType : '?'}→${rm ? rm.candidateType : '?'} ${l ? l.protocol : ''} | klatki=${frames} utracone=${lost} | wideo: ${v0 ? (v0.paused ? 'PAUZA' : 'gra') : '-'} ${v0 && v0.muted ? 'wyciszone' : 'z dzwiekiem'} ${v0 ? v0.videoWidth + 'x' + v0.videoHeight : ''}`);
+        }
+        if (!liveRef.current) return;
+        if (frames === null) return;
+        if (frames !== lastT.current) {
+          lastT.current = frames;
+          lastProg.current = Date.now();
+        } else if (!trackMuted.current && Date.now() - lastProg.current > 8000 && pcRef.current === pc) {
+          lastProg.current = Date.now();
+          hello();
+        }
+      } catch (e) {
+        /* sprobujemy przy nastepnym obiegu */
+      }
+    }, 2000);
     return () => {
       clearInterval(again);
+      clearInterval(stall);
       if (pcRef.current) pcRef.current.close();
       pcRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rev, code]);
+
+  // Tryb poklatkowy: gdy zadanie klatki zawiesi sie (brak odpowiedzi i bledu), po 3 s prosimy o nastepna
+  useEffect(() => {
+    if (!frames || live) return undefined;
+    const t = setTimeout(() => setFrameN((n) => n + 1), 3000);
+    return () => clearTimeout(t);
+  }, [frameN, frames, live]);
 
   // Reczna zmiana trybu przez prowadzacego
   const prevMode = useRef(intro.mode || 'auto');
@@ -364,29 +496,57 @@ export const IntroTv = ({ code, intro }) => {
 
   return (
     <Box sx={{ position: 'fixed', inset: 0, zIndex: 90, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 'clamp(10px, 2vh, 28px)', background: 'rgba(3,5,20,0.92)', backdropFilter: 'blur(6px)' }}>
+      {debug && (
+        <Box sx={{ position: 'absolute', top: 6, left: 8, zIndex: 5, fontFamily: 'monospace', fontSize: '0.7rem', color: '#9dff9d', background: 'rgba(0,0,0,0.65)', p: 0.75, borderRadius: '6px', maxWidth: '60vw', textAlign: 'left' }}>
+          <div>{dbg || '(brak danych WebRTC)'}</div>
+          {evs.map((e, i) => (
+            <div key={i}>{e}</div>
+          ))}
+        </Box>
+      )}
       <Typography className="pop-in" sx={{ color: 'var(--gold)', letterSpacing: 8, textTransform: 'uppercase', fontSize: 'clamp(0.9rem, 1.6vw, 1.8rem)' }}>Przedstawia się</Typography>
       <Typography className="gold-text neon-title" sx={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 'clamp(2rem, 5vw, 6rem)', lineHeight: 1 }}>{intro.name}</Typography>
       <Typography sx={{ color: 'var(--ink-dim)', fontSize: 'clamp(0.8rem, 1.2vw, 1.4rem)' }}>
         {live ? 'Tryb: na żywo' : frames ? 'Tryb: poklatkowy (bez dźwięku)' : 'Łączenie…'}
       </Typography>
-      <Box sx={{ position: 'relative', width: 'min(70vw, 120vh)', aspectRatio: '4 / 3', maxHeight: '62vh', borderRadius: '24px', overflow: 'hidden', border: '4px solid var(--gold)', boxShadow: '0 0 60px rgba(var(--accent-rgb),0.45)', background: '#000' }}>
-        <Box component="video" ref={videoRef} autoPlay playsInline sx={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
+      <Box sx={{ position: 'relative', height: `min(60vh, ${86 / ar}vw)`, aspectRatio: String(ar), maxWidth: '92vw', borderRadius: '24px', overflow: 'hidden', border: '4px solid var(--gold)', boxShadow: '0 0 60px rgba(var(--accent-rgb),0.45)', background: '#000' }}>
+        <Box
+          component="video"
+          ref={videoRef}
+          autoPlay
+          playsInline
+          onLoadedMetadata={(e) => setRatio(e.target.videoWidth, e.target.videoHeight)}
+          onResize={(e) => setRatio(e.target.videoWidth, e.target.videoHeight)}
+          onPause={(e) => {
+            // wideo wstrzymane przez przegladarke (np. niewidoczna ramka) - od razu wznawiamy
+            const el = e.target;
+            setTimeout(() => el.srcObject && el.paused && el.play().catch(() => {}), 300);
+          }}
+          sx={{ width: '100%', height: '100%', objectFit: 'contain', transform: 'scaleX(-1)' }}
+        />
         {frames && !live && (
           <Box
             component="img"
             alt=""
             src={`${API}/games/${code}/intro-frame?rev=${rev}&n=${frameN}`}
-            onLoad={() => {
+            onLoad={(e) => {
+              setRatio(e.target.naturalWidth, e.target.naturalHeight);
               setGotFrame(true);
               setTimeout(() => setFrameN((n) => n + 1), 250);
             }}
             onError={() => setTimeout(() => setFrameN((n) => n + 1), 700)}
-            sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)', opacity: gotFrame ? 1 : 0 }}
+            sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', transform: 'scaleX(-1)', opacity: gotFrame ? 1 : 0 }}
           />
         )}
-        {!live && !(frames && gotFrame) && (
+        {!live && !(frames && gotFrame) && !hadVideo && (
           <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', px: 3 }}>
             <Typography sx={{ color: 'var(--ink-dim)', fontSize: 'clamp(1rem, 2vw, 2.4rem)' }}>Czekamy na włączenie kamery na telefonie...</Typography>
+          </Box>
+        )}
+        {/* przerwa w trakcie: zostaje ostatnia klatka, a napis jest tylko dyskretna plakietka */}
+        {hadVideo && (!live || camPaused) && !(frames && gotFrame && !live) && (
+          <Box sx={{ position: 'absolute', left: 0, right: 0, bottom: 0, py: 0.75, textAlign: 'center', background: 'rgba(0,0,0,0.72)', color: '#ffd76a', fontWeight: 700, fontSize: 'clamp(0.8rem, 1.4vw, 1.6rem)' }}>
+            {camPaused ? '📱 Telefon wstrzymał obraz – odblokuj ekran telefonu' : '⏳ Łączenie ponownie…'}
           </Box>
         )}
       </Box>
