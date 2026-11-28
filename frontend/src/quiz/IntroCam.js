@@ -59,21 +59,23 @@ export const IntroPhone = ({ code, intro, token, as }) => {
   const [error, setError] = useState('');
   const [live, setLive] = useState(false);
   const videoRef = useRef(null);
-  const pcRef = useRef(null);
-  const sidRef = useRef('');
-  const pendingIce = useRef([]);
+  // Jedno polaczenie na kazdy widok TV (klucz = identyfikator widoku): kilka ekranow moze ogladac jednoczesnie
+  // (np. telewizor + podglad w konsoli testowej) i nie zrywaja sobie nawzajem polaczenia.
+  const pcsRef = useRef(new Map()); // viewer -> { pc, sid, pending }
   const extra = { token, as };
   const rev = intro.rev;
 
+  const refreshLive = () => setLive([...pcsRef.current.values()].some((e) => e.pc.connectionState === 'connected'));
+
   const closePc = () => {
-    if (pcRef.current) {
+    pcsRef.current.forEach((e) => {
       try {
-        pcRef.current.close();
-      } catch (e) {
+        e.pc.close();
+      } catch (err) {
         /* ignorujemy */
       }
-      pcRef.current = null;
-    }
+    });
+    pcsRef.current.clear();
     setLive(false);
   };
 
@@ -164,32 +166,72 @@ export const IntroPhone = ({ code, intro, token, as }) => {
     }
   };
 
+  const viewerOf = (m) => (m.data && m.data.viewer) || m.sid; // starszy widok TV bez identyfikatora: kazde hello = osobny widz
+  const entryBySid = (sid) => [...pcsRef.current.values()].find((e) => e.sid === sid);
+
   const handle = async (msgs) => {
-    const lastHello = [...msgs].reverse().find((m) => m.type === 'hello');
+    // z kazdego widoku TV obsluzymy tylko jego najnowsze "hello" z tej partii
+    const lastHello = new Map();
+    msgs.forEach((m) => {
+      if (m.type === 'hello') lastHello.set(viewerOf(m), m);
+    });
     for (const m of msgs) {
       try {
         if (m.type === 'hello') {
-          if (m !== lastHello || !stream) continue;
-          closePc();
-          pendingIce.current = [];
-          sidRef.current = m.sid;
+          const viewer = viewerOf(m);
+          if (lastHello.get(viewer) !== m || !stream) continue;
+          // nowe "hello" z tego samego widoku zastepuje jego stare polaczenie, ale nie rusza polaczen innych widokow
+          const old = pcsRef.current.get(viewer);
+          if (old) {
+            try {
+              old.pc.close();
+            } catch (e) {
+              /* ignorujemy */
+            }
+            pcsRef.current.delete(viewer);
+          }
+          while (pcsRef.current.size >= 4) {
+            const k = pcsRef.current.keys().next().value;
+            try {
+              pcsRef.current.get(k).pc.close();
+            } catch (e) {
+              /* ignorujemy */
+            }
+            pcsRef.current.delete(k);
+          }
           const pc = new RTCPeerConnection(RTC_CONFIG);
-          pcRef.current = pc;
+          const entry = { pc, sid: m.sid, pending: [] };
+          pcsRef.current.set(viewer, entry);
           stream.getTracks().forEach((t) => pc.addTrack(t, stream));
           pc.onicecandidate = (e) => {
             if (e.candidate) sendSignal(code, { role: 'phone', rev, type: 'ice', sid: m.sid, data: e.candidate.toJSON() }, extra);
           };
-          pc.onconnectionstatechange = () => setLive(pc.connectionState === 'connected');
+          pc.onconnectionstatechange = () => {
+            if (pcsRef.current.get(viewer) !== entry) return; // stare polaczenie tego widoku
+            if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+              try {
+                pc.close();
+              } catch (e) {
+                /* ignorujemy */
+              }
+              pcsRef.current.delete(viewer);
+            }
+            refreshLive();
+          };
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
           await sendSignal(code, { role: 'phone', rev, type: 'offer', sid: m.sid, data: pc.localDescription.toJSON() }, extra);
-        } else if (m.type === 'answer' && m.sid === sidRef.current && pcRef.current) {
-          await pcRef.current.setRemoteDescription(m.data);
-          for (const c of pendingIce.current) await pcRef.current.addIceCandidate(c).catch(() => {});
-          pendingIce.current = [];
-        } else if (m.type === 'ice' && m.sid === sidRef.current && pcRef.current) {
-          if (pcRef.current.remoteDescription) await pcRef.current.addIceCandidate(m.data).catch(() => {});
-          else pendingIce.current.push(m.data);
+        } else if (m.type === 'answer') {
+          const e = entryBySid(m.sid);
+          if (!e) continue;
+          await e.pc.setRemoteDescription(m.data);
+          for (const c of e.pending) await e.pc.addIceCandidate(c).catch(() => {});
+          e.pending = [];
+        } else if (m.type === 'ice') {
+          const e = entryBySid(m.sid);
+          if (!e) continue;
+          if (e.pc.remoteDescription) await e.pc.addIceCandidate(m.data).catch(() => {});
+          else e.pending.push(m.data);
         }
       } catch (e) {
         /* pojedyncza wiadomosc moze byc nieaktualna */
@@ -234,6 +276,7 @@ export const IntroTv = ({ code, intro }) => {
   const helloAt = useRef(0);
   const liveRef = useRef(false);
   const framesRef = useRef(false);
+  const viewerRef = useRef(rid());
   const lastLiveAt = useRef(0); // ostatnia chwila, gdy polaczenie bylo "connected" (odswiezane co 2 s)
   const discAt = useRef(0); // kiedy zaczelo sie "disconnected"
   const [soundBlocked, setSoundBlocked] = useState(false); // przegladarka nie pozwala na dzwiek bez klikniecia
@@ -372,7 +415,8 @@ export const IntroTv = ({ code, intro }) => {
     };
     pc.oniceconnectionstatechange = () => logEv(`ICE: ${pc.iceConnectionState}`);
     logEv('hello (nowa negocjacja)');
-    sendSignal(code, { role: 'tv', rev, type: 'hello', sid });
+    // viewer: ten sam identyfikator przez cale zycie tego widoku TV - telefon obsluguje kilka widokow naraz
+    sendSignal(code, { role: 'tv', rev, type: 'hello', sid, data: { viewer: viewerRef.current } });
     setStatus('connecting');
   };
 
